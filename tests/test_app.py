@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from contextlib import asynccontextmanager
 
 import pytest
@@ -6,6 +7,28 @@ from fastapi.testclient import TestClient
 
 import backend.app as module
 from backend.app import Chat
+
+
+def test_only_expected_busy_reload_access_logs_are_suppressed():
+    filter_ = module.QuietReloadPoll()
+    for path, status, expected in [
+        ("/api/prepare-reload", 409, False),
+        ("/api/prepare-reload", 200, True),
+        ("/api/prepare-reload", 500, True),
+        ("/api/chat", 409, True),
+    ]:
+        record = logging.LogRecord(
+            "uvicorn.access",
+            logging.INFO,
+            "",
+            0,
+            "%s - %s %s %s %s",
+            ("127.0.0.1", "POST", path, "1.1", status),
+            None,
+        )
+        assert filter_.filter(record) is expected
+    other = logging.LogRecord("uvicorn.error", logging.ERROR, "", 0, "Failure", (), None)
+    assert filter_.filter(other)
 
 
 def test_streaming_blocks_and_authoritative_message():

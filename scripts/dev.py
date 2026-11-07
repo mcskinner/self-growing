@@ -115,6 +115,8 @@ def run():
         web = subprocess.Popen(["npm", "run", "dev"], cwd=ROOT, start_new_session=True)
         processes.append(web)
         previous = fingerprint()
+        reload_retry_at = 0.0
+        waiting_for_turn = False
         print(f"\n  Open http://127.0.0.1:{WEB_PORT}\n", flush=True)
         while True:
             time.sleep(0.5)
@@ -133,6 +135,8 @@ def run():
                     browser_opened = True
             current = fingerprint()
             if current != previous:
+                if time.monotonic() < reload_retry_at:
+                    continue
                 try:
                     request = urllib.request.Request(
                         f"http://127.0.0.1:{API_PORT}/api/prepare-reload",
@@ -140,8 +144,12 @@ def run():
                     )
                     with urllib.request.urlopen(request, timeout=1) as response:
                         json.load(response)
-                except urllib.error.HTTPError:
-                    continue  # A turn is running; try again after it settles.
+                except urllib.error.HTTPError as exc:
+                    if exc.code == 409 and not waiting_for_turn:
+                        print("Python changes pending; waiting for Pi to finish…", flush=True)
+                        waiting_for_turn = True
+                    reload_retry_at = time.monotonic() + 2
+                    continue  # Keep the no-reload-during-a-turn safeguard.
                 except (urllib.error.URLError, TimeoutError):
                     if api.poll() is None:
                         continue
@@ -150,6 +158,8 @@ def run():
                 api = backend()
                 processes.append(api)
                 previous = current
+                waiting_for_turn = False
+                reload_retry_at = 0.0
             elif api.poll() is not None:
                 print("Backend exited. Edit backend/*.py to retry.", flush=True)
                 # Keep the watcher alive so a syntax error can be fixed live.

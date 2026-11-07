@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import os
 from contextlib import asynccontextmanager
 from uuid import uuid4
@@ -10,6 +11,23 @@ from pydantic import BaseModel, Field
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from backend.pi import connect, select_session
+
+
+class QuietReloadPoll(logging.Filter):
+    """Busy reload probes are normal watcher traffic, not user-facing failures."""
+
+    def filter(self, record):
+        args = record.args
+        return not (
+            isinstance(args, tuple)
+            and len(args) == 5
+            and args[1] == "POST"
+            and str(args[2]).split("?", 1)[0] == "/api/prepare-reload"
+            and args[4] == 409
+        )
+
+
+logging.getLogger("uvicorn.access").addFilter(QuietReloadPoll())
 
 
 class Chat:
