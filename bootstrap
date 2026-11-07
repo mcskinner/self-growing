@@ -3,7 +3,9 @@
 set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-TOOLS="$ROOT/.local/tools"
+REPO=${SELF_GROWING_REPO:-}
+BRANCH=${SELF_GROWING_BRANCH:-starter-kit}
+DEST=${SELF_GROWING_DIR:-"$HOME/.local/share/self-growing"}
 NODE_VERSION=22.23.2
 PI_VERSION=1.5.0
 OPEN_BROWSER=${OPEN_BROWSER:-1}
@@ -17,20 +19,51 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-for option in "$@"; do
-  case "$option" in
+while [ "$#" -gt 0 ]; do
+  case "$1" in
     --login) LOGIN=yes ;;
     --no-login) LOGIN=no ;;
     --no-open) OPEN_BROWSER=0 ;;
-    --help) printf '%s\n' 'Usage: ./bootstrap [--login | --no-login] [--no-open]' \
-      'Installs missing Node, uv, and Pi under .local/tools, installs app dependencies,' \
-      'and starts the app. Newly installed Pi opens for interactive /login first.'; exit 0 ;;
-    *) die "Unknown option: $option (try --help)" ;;
+    --repo|--branch|--dir)
+      [ "$#" -ge 2 ] || die "$1 requires a value."
+      case "$1" in
+        --repo) REPO=$2 ;; --branch) BRANCH=$2 ;; --dir) DEST=$2 ;;
+      esac
+      shift ;;
+    --help) printf '%s\n' \
+      'Usage: bootstrap [--repo URL] [--branch REF] [--dir PATH] [--login | --no-login] [--no-open]' \
+      'Can run from a checkout or via curl | sh with --repo URL.' \
+      'The remote entry clones starter-kit into ~/.local/share/self-growing by default.' \
+      'Installs missing tools locally and starts the app. Newly installed Pi opens for /login.'; exit 0 ;;
+    *) die "Unknown option: $1 (try --help)" ;;
   esac
+  shift
 done
 
-cd "$ROOT"
 export OPEN_BROWSER
+if [ ! -f "$ROOT/pyproject.toml" ] || [ ! -f "$ROOT/scripts/dev.py" ]; then
+  [ -n "$REPO" ] || die 'For curl | sh, pass --repo <repository-url> (the published repository URL is not configured yet).'
+  command -v git >/dev/null 2>&1 || die 'Install Git, then run this installer again.'
+  if [ -e "$DEST" ]; then
+    [ -d "$DEST/.git" ] && [ -f "$DEST/bootstrap" ] || die "Destination already exists and is not an app checkout: $DEST"
+    ORIGIN=$(git -C "$DEST" remote get-url origin)
+    [ "$ORIGIN" = "$REPO" ] || die "Destination belongs to another repository: $DEST"
+    say "Reusing $DEST (existing files and edits are not updated or overwritten)."
+  else
+    say "Cloning $REPO into ${DEST}..."
+    mkdir -p "$(dirname -- "$DEST")"
+    git clone --single-branch --branch "$BRANCH" -- "$REPO" "$DEST"
+  fi
+  TARGET=$(CDPATH= cd -- "$DEST" && pwd)
+  [ -f "$TARGET/bootstrap" ] && [ -f "$TARGET/pyproject.toml" ] && [ -f "$TARGET/scripts/dev.py" ] || die 'The repository does not contain the app launcher.'
+  set --
+  case "$LOGIN" in yes) set -- "$@" --login ;; no) set -- "$@" --no-login ;; esac
+  [ "$OPEN_BROWSER" != 0 ] || set -- "$@" --no-open
+  exec sh "$TARGET/bootstrap" "$@"
+fi
+
+cd "$ROOT"
+TOOLS="$ROOT/.local/tools"
 # Avoid touching dependencies beneath an already-running instance of this workspace.
 if [ -x .venv/bin/python ] && [ -f .local/dev.lock ]; then
   if .venv/bin/python scripts/dev.py --check; then exit 0; fi

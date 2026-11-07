@@ -4,11 +4,21 @@ A small web app you can change by talking to it. One chat, one local workspace, 
 
 ## Start
 
-Clone or download this repository, then run this one command in the checkout:
+The installer can clone the repository and launch the stack for you:
 
 ```sh
-./bootstrap
+curl -fsSL https://raw.githubusercontent.com/OWNER/REPO/starter-kit/bootstrap | \
+  sh -s -- --repo https://github.com/OWNER/REPO.git
 ```
+
+**Publishing note:** replace `OWNER/REPO` with the real repository before distributing this
+command. This checkout has no Git remote configured, so the URL above is a placeholder.
+The installer needs Git and uses `~/.local/share/self-growing` by default; pass `--dir PATH`
+to choose another directory. Repeated runs reuse that checkout without pulling updates,
+switching branches, or overwriting local edits. Only pipe installer code you trust into a shell;
+you can download and inspect the script first instead.
+
+Already have a checkout? Run `./bootstrap` there—no repository URL is needed.
 
 On **macOS or Linux (including WSL)**, the launcher reuses installed tools or provisions
 missing Node.js, [uv](https://docs.astral.sh/uv/), and [Pi](https://pi.dev) under the gitignored
@@ -24,7 +34,8 @@ started by this launcher in the same checkout instead of reinstalling its depend
 
 Already installed Pi? Its existing login is reused. Use `./bootstrap --login` to open Pi's
 login flow first, or `./bootstrap --no-login` when credentials are already configured.
-`./bootstrap --no-open` starts without opening a browser. The local installs are reused on
+`./bootstrap --no-open` starts without opening a browser. The piped installer accepts the
+same flags, plus `--branch REF` (default: `starter-kit`) and `--dir PATH`. The local installs are reused on
 later launches; run `./bootstrap` again after closing the terminal.
 
 Prefer starting with Pi? Install Pi, log in, open this checkout in Pi, and ask it to help

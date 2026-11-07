@@ -12,6 +12,9 @@ def checkout(tmp_path):
     root.mkdir()
     source = Path(__file__).resolve().parents[1] / "bootstrap"
     shutil.copy(source, root / "bootstrap")
+    (root / "pyproject.toml").write_text("# Test checkout marker\n")
+    (root / "scripts").mkdir()
+    (root / "scripts" / "dev.py").write_text("# Not executed by the mocked toolchain\n")
     tools = tmp_path / "bin"
     tools.mkdir()
     log = tmp_path / "commands.log"
@@ -26,7 +29,8 @@ def checkout(tmp_path):
         "PATH": f"{tools}:/usr/bin:/bin",
         "BOOTSTRAP_TEST_LOG": str(log),
     }
-    env.pop("PI_BIN", None)
+    for name in ["PI_BIN", "SELF_GROWING_REPO", "SELF_GROWING_BRANCH", "SELF_GROWING_DIR"]:
+        env.pop(name, None)
     return root, tools, log, env
 
 
@@ -96,3 +100,61 @@ def test_launcher_stops_when_a_tool_download_fails(checkout):
     result = launch(checkout, "--no-open")
     assert result.returncode != 0
     assert not log.exists()
+
+
+def test_piped_installer_clones_and_reuses_a_checkout(checkout, tmp_path):
+    root, _, _, env = checkout
+    git = shutil.which("git")
+    assert git
+    subprocess.run([git, "init", "-b", "starter-kit", str(root)], check=True, capture_output=True)
+    subprocess.run(
+        [git, "-C", str(root), "add", "bootstrap", "pyproject.toml", "scripts"], check=True
+    )
+    subprocess.run(
+        [
+            git,
+            "-C",
+            str(root),
+            "-c",
+            "user.name=Test",
+            "-c",
+            "user.email=test@example.invalid",
+            "commit",
+            "-m",
+            "Fixture",
+        ],
+        check=True,
+        capture_output=True,
+    )
+    destination = tmp_path / "installed app"
+    arguments = ["sh", "-s", "--", "--repo", str(root), "--dir", str(destination), "--no-open"]
+    script = (root / "bootstrap").read_text()
+    result = subprocess.run(
+        arguments, input=script, cwd=tmp_path, env=env, text=True, capture_output=True, timeout=15
+    )
+    assert result.returncode == 0, result.stderr
+    assert (destination / ".git").is_dir()
+    assert (destination / "bootstrap").exists()
+    note = destination / "my-local-edit.md"
+    note.write_text("Do not overwrite")
+    result = subprocess.run(
+        arguments, input=script, cwd=tmp_path, env=env, text=True, capture_output=True, timeout=15
+    )
+    assert result.returncode == 0, result.stderr
+    assert "Reusing" in result.stdout
+    assert note.read_text() == "Do not overwrite"
+
+
+def test_piped_installer_requires_a_real_repository_url(checkout, tmp_path):
+    root, _, _, env = checkout
+    result = subprocess.run(
+        ["sh", "-s"],
+        input=(root / "bootstrap").read_text(),
+        cwd=tmp_path,
+        env=env,
+        text=True,
+        capture_output=True,
+        timeout=10,
+    )
+    assert result.returncode != 0
+    assert "--repo" in result.stderr
