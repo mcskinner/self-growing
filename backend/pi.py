@@ -3,11 +3,28 @@
 import asyncio
 import json
 import os
+import re
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SESSION_DIR = ROOT / ".local" / "sessions"
+ACTIVE_SESSION = ROOT / ".local" / "active-session"
+
+
+def active_session_id():
+    return ACTIVE_SESSION.read_text().strip() if ACTIVE_SESSION.exists() else "app"
+
+
+def select_session(session_id):
+    if not isinstance(session_id, str) or not re.fullmatch(
+        r"[a-zA-Z0-9][a-zA-Z0-9._-]*", session_id
+    ):
+        raise ValueError("Pi returned an invalid session ID")
+    ACTIVE_SESSION.parent.mkdir(parents=True, exist_ok=True)
+    temporary = ACTIVE_SESSION.with_suffix(".tmp")
+    temporary.write_text(session_id)
+    temporary.replace(ACTIVE_SESSION)
 
 
 class Pi:
@@ -55,7 +72,7 @@ async def connect():
         "--session-dir",
         str(SESSION_DIR),
         "--session-id",
-        "app",
+        active_session_id(),
         "--approve",
     ]
     if model := os.environ.get("PI_MODEL"):

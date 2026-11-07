@@ -14,6 +14,7 @@ check:
 
 test:
 	uv run pytest
+	npm test
 
 build:
 	npm run build

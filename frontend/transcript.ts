@@ -2,6 +2,7 @@ import { LitElement, css, html, nothing } from 'lit';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
+import { visibleMessages } from './transcript-visibility';
 
 export interface Block {
   type: string;
@@ -25,12 +26,14 @@ const markdown = (text: string) => unsafeHTML(DOMPurify.sanitize(
 
 /** Presentation only: no model calls, credentials, or browser-side agent tools. */
 export class Transcript extends LitElement {
-  static properties = { messages: { attribute: false } };
+  static properties = { messages: { attribute: false }, showDetails: { attribute: false } };
   declare messages: Message[];
+  declare showDetails: boolean;
 
   constructor() {
     super();
     this.messages = [];
+    this.showDetails = false;
   }
 
   static styles = css`
@@ -40,7 +43,7 @@ export class Transcript extends LitElement {
       text-transform: uppercase; color: #7b8177; }
     .user { margin-left: 12%; }
     .user .body { background: #eeeee7; border-radius: 18px 18px 4px 18px; padding: 14px 20px;
-      white-space: pre-wrap; }
+      }
     .user .label { text-align: right; }
     p { margin: 0 0 12px; } p:last-child { margin-bottom: 0; }
     h1, h2, h3 { line-height: 1.3; letter-spacing: -.025em; margin: 24px 0 12px; }
@@ -63,7 +66,7 @@ export class Transcript extends LitElement {
   `;
 
   render() {
-    return html`${this.messages.map(message => {
+    return html`${visibleMessages(this.messages, this.showDetails).map(message => {
       const blocks = typeof message.content === 'string'
         ? [{ type: 'text', text: message.content }] : message.content;
       if (message.role === 'toolResult') {
@@ -76,7 +79,7 @@ export class Transcript extends LitElement {
       return html`<article class=${user ? 'user' : 'assistant'}>
         <div class="label">${user ? 'You' : 'Pi'}</div>
         <div class="body">${blocks.map(block => {
-          if (block.type === 'text') return user ? block.text : markdown(block.text || '');
+          if (block.type === 'text') return markdown(block.text || '');
           if (block.type === 'thinking') return html`<details><summary>Thinking</summary>
             ${markdown(block.thinking || '')}</details>`;
           if (block.type === 'toolCall') return html`<details><summary>${block.name}</summary>
