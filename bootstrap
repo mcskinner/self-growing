@@ -1,0 +1,118 @@
+#!/bin/sh
+# Local-only setup for macOS and Linux/WSL. No sudo or shell-profile changes.
+set -eu
+
+ROOT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+TOOLS="$ROOT/.local/tools"
+NODE_VERSION=22.23.2
+PI_VERSION=1.5.0
+OPEN_BROWSER=${OPEN_BROWSER:-1}
+LOGIN=auto
+TEMP=
+
+say() { printf '\n%s\n' "$*"; }
+die() { printf '\nSetup failed: %s\n' "$*" >&2; exit 1; }
+cleanup() { if [ -n "$TEMP" ]; then rm -rf "$TEMP"; fi; }
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+for option in "$@"; do
+  case "$option" in
+    --login) LOGIN=yes ;;
+    --no-login) LOGIN=no ;;
+    --no-open) OPEN_BROWSER=0 ;;
+    --help) printf '%s\n' 'Usage: ./bootstrap [--login | --no-login] [--no-open]' \
+      'Installs missing Node, uv, and Pi under .local/tools, installs app dependencies,' \
+      'and starts the app. Newly installed Pi opens for interactive /login first.'; exit 0 ;;
+    *) die "Unknown option: $option (try --help)" ;;
+  esac
+done
+
+cd "$ROOT"
+export OPEN_BROWSER
+# Avoid touching dependencies beneath an already-running instance of this workspace.
+if [ -x .venv/bin/python ] && [ -f .local/dev.lock ]; then
+  if .venv/bin/python scripts/dev.py --check; then exit 0; fi
+fi
+
+case "$(uname -s)" in
+  Darwin) PLATFORM=darwin ;;
+  Linux) PLATFORM=linux ;;
+  *) die 'Use macOS, Linux, or Windows through WSL.' ;;
+esac
+case "$(uname -m)" in
+  arm64|aarch64) ARCH=arm64 ;;
+  x86_64|amd64) ARCH=x64 ;;
+  *) die 'Only ARM64 and x86-64 are supported by this launcher.' ;;
+esac
+
+NODE_FOLDER="node-v$NODE_VERSION-$PLATFORM-$ARCH"
+PATH="$TOOLS/$NODE_FOLDER/bin:$TOOLS/uv:$TOOLS/pi/node_modules/.bin:$PATH"
+export PATH
+mkdir -p "$TOOLS"
+
+prepare_download() {
+  command -v curl >/dev/null 2>&1 || die 'Install curl, then run ./bootstrap again.'
+  if [ -z "$TEMP" ]; then TEMP=$(mktemp -d "${TMPDIR:-/tmp}/self-growing.XXXXXX"); fi
+}
+download() { curl --fail --location --retry 2 --connect-timeout 15 "$1" -o "$2"; }
+
+if ! command -v node >/dev/null 2>&1 || ! node -e '
+  const [major, minor] = process.versions.node.split(".").map(Number);
+  process.exit(major > 22 || (major === 22 && minor >= 19) ? 0 : 1);
+'; then
+  say "Installing Node $NODE_VERSION locally…"
+  prepare_download
+  ARCHIVE="$NODE_FOLDER.tar.gz"
+  download "https://nodejs.org/dist/v$NODE_VERSION/$ARCHIVE" "$TEMP/$ARCHIVE"
+  download "https://nodejs.org/dist/v$NODE_VERSION/SHASUMS256.txt" "$TEMP/SHASUMS256.txt"
+  EXPECTED=$(awk -v file="$ARCHIVE" '$2 == file { print $1 }' "$TEMP/SHASUMS256.txt")
+  if command -v shasum >/dev/null 2>&1; then
+    ACTUAL=$(shasum -a 256 "$TEMP/$ARCHIVE" | awk '{ print $1 }')
+  elif command -v sha256sum >/dev/null 2>&1; then
+    ACTUAL=$(sha256sum "$TEMP/$ARCHIVE" | awk '{ print $1 }')
+  else
+    die 'A SHA-256 utility (shasum or sha256sum) is required to verify Node.'
+  fi
+  [ -n "$EXPECTED" ] && [ "$EXPECTED" = "$ACTUAL" ] || die 'Node checksum verification failed.'
+  tar -xzf "$TEMP/$ARCHIVE" -C "$TOOLS"
+fi
+command -v npm >/dev/null 2>&1 || die 'Node is present but npm is missing; install a complete Node distribution.'
+
+if ! command -v uv >/dev/null 2>&1; then
+  say 'Installing uv locally from its official installer…'
+  prepare_download
+  download https://astral.sh/uv/install.sh "$TEMP/uv-install.sh"
+  UV_INSTALL_DIR="$TOOLS/uv" UV_NO_MODIFY_PATH=1 sh "$TEMP/uv-install.sh"
+fi
+
+NEW_PI=0
+if [ -n "${PI_BIN:-}" ]; then
+  command -v "$PI_BIN" >/dev/null 2>&1 || die "PI_BIN does not point to an executable: $PI_BIN"
+elif command -v pi >/dev/null 2>&1; then
+  PI_BIN=$(command -v pi)
+else
+  say "Installing Pi $PI_VERSION locally…"
+  npm install --prefix "$TOOLS/pi" --no-audit --no-fund "@earendil-works/pi-coding-agent@$PI_VERSION"
+  PI_BIN="$TOOLS/pi/node_modules/.bin/pi"
+  NEW_PI=1
+fi
+export PI_BIN
+
+if [ "$LOGIN" = yes ] || { [ "$LOGIN" = auto ] && [ "$NEW_PI" = 1 ]; }; then
+  say 'Pi setup: use /login to connect your provider, then exit Pi with Ctrl+D to continue.'
+  if [ -t 1 ] && [ -r /dev/tty ]; then
+    "$PI_BIN" </dev/tty
+  else
+    die 'Login needs a terminal. Run ./bootstrap --login interactively, or use --no-login if credentials are already configured.'
+  fi
+fi
+
+say 'Installing app dependencies…'
+uv sync
+npm ci
+say 'Starting self-growing. Keep this terminal open; Ctrl+C stops both servers.'
+cleanup
+TEMP=
+exec uv run python scripts/dev.py

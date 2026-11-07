@@ -1,5 +1,6 @@
 """Run both dev servers; defer Python reloads until Pi finishes its turn."""
 
+import fcntl
 import json
 import os
 import signal
@@ -9,6 +10,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+import webbrowser
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -64,13 +66,44 @@ def choose_port(variable, default, reserved=()):
     sys.exit(f"No free port for {variable}. Set {variable} to an unused port.")
 
 
+def show_running():
+    try:
+        info = json.loads((ROOT / ".local" / "dev.json").read_text())
+        url = info["url"]
+    except (OSError, ValueError, KeyError):
+        print("This workspace is already starting in another terminal.", flush=True)
+        return
+    print(f"Already running: {url}", flush=True)
+    if os.environ.get("OPEN_BROWSER") == "1":
+        webbrowser.open(url)
+
+
 def main():
+    local = ROOT / ".local"
+    local.mkdir(exist_ok=True)
+    with (local / "dev.lock").open("a") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            show_running()
+            return 0
+        if "--check" in sys.argv[1:]:
+            return 1
+        run()
+    return 0
+
+
+def run():
     global API_PORT, WEB_PORT
     API_PORT = choose_port("API_PORT", 8000)
     WEB_PORT = choose_port("WEB_PORT", 5173, reserved=(int(API_PORT),))
     # Both children need the selected ports for proxying and Origin validation.
     os.environ.update(API_PORT=API_PORT, WEB_PORT=WEB_PORT)
     processes = []
+    url = f"http://127.0.0.1:{WEB_PORT}"
+    state_file = ROOT / ".local" / "dev.json"
+    state_file.write_text(json.dumps({"pid": os.getpid(), "url": url}))
+    browser_opened = os.environ.get("OPEN_BROWSER") != "1"
 
     def shutdown(*_):
         raise KeyboardInterrupt
@@ -87,6 +120,17 @@ def main():
             time.sleep(0.5)
             if web.poll() is not None:
                 raise RuntimeError("Vite exited")
+            if not browser_opened:
+                try:
+                    with urllib.request.urlopen(url, timeout=0.2):
+                        pass
+                    with urllib.request.urlopen(f"{url}/api/state", timeout=0.2):
+                        pass
+                except (urllib.error.URLError, TimeoutError):
+                    pass
+                else:
+                    webbrowser.open(url)
+                    browser_opened = True
             current = fingerprint()
             if current != previous:
                 try:
@@ -118,7 +162,8 @@ def main():
             if process is locals().get("web") and process.poll() is None:
                 os.killpg(process.pid, signal.SIGTERM)
             terminate(process)
+        state_file.unlink(missing_ok=True)
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

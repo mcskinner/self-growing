@@ -4,12 +4,33 @@ A small web app you can change by talking to it. One chat, one local workspace, 
 
 ## Start
 
-You need [uv](https://docs.astral.sh/uv/), Node.js 22.19+, and **Pi 1.5.0+** on your PATH.
-The RPC integration is tested with Pi 1.5.0.
+Clone or download this repository, then run this one command in the checkout:
 
-1. Install [Pi](https://pi.dev), run `pi`, and use `/login` to connect your provider/subscription.
-2. Run `make dev` in this directory. It installs locked dependencies and starts both servers.
-3. Open the URL printed in the terminal (normally **http://127.0.0.1:5173**) and ask for a change.
+```sh
+./bootstrap
+```
+
+On **macOS or Linux (including WSL)**, the launcher reuses installed tools or provisions
+missing Node.js, [uv](https://docs.astral.sh/uv/), and [Pi](https://pi.dev) under the gitignored
+`.local/tools/` directory. No `sudo`, Python installation, `make`, or shell-profile changes
+are required. Downloads require internet access, `curl`, and `tar`; Node downloads are
+SHA-256 checked. The launcher runs uv's official installer and npm package install scripts,
+so only run it from a repository you trust.
+
+If Pi was just installed, it opens for interactive setup: use `/login`, then **Ctrl+D** to
+continue. The app opens in your browser once both servers are ready. Keep the terminal
+open; **Ctrl+C** stops the stack. Running the launcher again reuses an instance already
+started by this launcher in the same checkout instead of reinstalling its dependencies.
+
+Already installed Pi? Its existing login is reused. Use `./bootstrap --login` to open Pi's
+login flow first, or `./bootstrap --no-login` when credentials are already configured.
+`./bootstrap --no-open` starts without opening a browser. The local installs are reused on
+later launches; run `./bootstrap` again after closing the terminal.
+
+Prefer starting with Pi? Install Pi, log in, open this checkout in Pi, and ask it to help
+run `./bootstrap --no-login`. No browser-side provider credentials are needed.
+With uv, Node.js 22.19+, and Pi already on your PATH, `make dev` remains available.
+The RPC integration is tested with Pi 1.5.0; that is the launcher's pinned Pi version.
 
 For example: “Turn this into a simple meal planner, keeping the chat available.”
 
@@ -17,13 +38,13 @@ Pi uses its existing credentials and default model. Nothing secret goes into the
 To choose a model explicitly:
 
 ```sh
-PI_MODEL='your-provider/your-model' make dev
+PI_MODEL='your-provider/your-model' ./bootstrap
 ```
 
 Occupied default ports are skipped automatically. To require specific ports instead:
 
 ```sh
-WEB_PORT=5177 API_PORT=8107 make dev
+WEB_PORT=5177 API_PORT=8107 ./bootstrap
 ```
 
 `PI_BIN` can point to a different Pi executable. Python is pinned to the 3.13 series;
@@ -58,6 +79,7 @@ provider access, retries, compaction, and context. `AGENTS.md` tells it how this
 ## Commands
 
 ```sh
+./bootstrap   # Provision missing tools, install dependencies, and open the local app
 make dev      # Install dependencies and start both dev servers
 make check    # Ruff lint/format checks + TypeScript
 make test     # Backend and frontend logic tests (no model calls)
