@@ -1,4 +1,5 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
+import { DocumentPicker, DocumentView } from './documents';
 import { createRoot } from 'react-dom/client';
 import type { Transcript, Message } from './transcript';
 import { ChatDisplay } from './chat-display';
@@ -17,6 +18,19 @@ function App() {
     messages: [], busy: false, error: null, activity: '', steering: [], context: null, sessionId: null,
   });
   const [connected, setConnected] = useState(false);
+  const [documentPath, setDocumentPath] = useState(() => sessionStorage.getItem('open-document') || '');
+  function openDocument(path: string) {
+    if (path) sessionStorage.setItem('open-document', path);
+    else sessionStorage.removeItem('open-document');
+    setDocumentPath(path);
+  }
+  const [chatWidth, setChatWidth] = useState(() => {
+    const saved = Number(localStorage.getItem('chat-width'));
+    return Number.isFinite(saved) && saved >= 320 ? Math.min(saved, 900) : 480;
+  });
+  const [resizing, setResizing] = useState(false);
+  const workspace = useRef<HTMLDivElement>(null);
+  const drag = useRef<{ x: number; width: number } | null>(null);
   const [showDetails, setShowDetails] = useState(() => localStorage.getItem('show-chat-details') === 'true');
   const [draft, setDraft] = useState(() => sessionStorage.getItem('draft') || '');
   const messages = useMessageQueue(connected);
@@ -82,6 +96,16 @@ function App() {
   }, [draft]);
   useEffect(() => { localStorage.setItem('show-chat-details', String(showDetails)); }, [showDetails]);
 
+  useEffect(() => { localStorage.setItem('chat-width', String(chatWidth)); }, [chatWidth]);
+  function resizeChat(width: number) {
+    const element = workspace.current;
+    const padding = element ? getComputedStyle(element) : null;
+    const available = element && padding
+      ? element.clientWidth - parseFloat(padding.paddingLeft) - parseFloat(padding.paddingRight)
+      : window.innerWidth;
+    setChatWidth(Math.round(Math.max(320, Math.min(width, 900, available - 369))));
+  }
+
   function send() {
     if (!draft.trim() || stopping || startingSession) return;
     messages.enqueue(draft);
@@ -91,7 +115,7 @@ function App() {
 
   async function newChat() {
     if (state.busy || messages.queue.length || startingSession || stopping) return;
-    if (!window.confirm('Start a fresh chat? This conversation stays saved on disk. Your unsent draft will be kept.')) return;
+    if (!window.confirm('Start a fresh chat? This conversation stays saved on disk. Your document, comments, and unsent draft will be kept.')) return;
     setStartingSession(true); setError('');
     try {
       await messages.pauseAndWait();
@@ -116,11 +140,16 @@ function App() {
     finally { setStopping(false); input.current?.focus(); }
   }
 
-  return <div className="app">
+  return <div className={`app ${documentPath ? 'reviewing' : ''} ${resizing ? 'resizing' : ''}`}
+    style={{ '--chat-width': `${chatWidth}px` } as CSSProperties}>
     <header><a className="brand" href="/" aria-label="Self-growing home"><span className="seed">✳</span> self-growing</a>
+      <DocumentPicker onOpen={openDocument} />
       <div className="header-actions"><ChatDisplay showDetails={showDetails} onChange={setShowDetails} />
         <span className="connection"><i className={connected ? 'online' : ''} />{connected ? 'Local workspace' : 'Connecting…'}</span></div>
     </header>
+    <div className="workspace" ref={workspace}>
+      <section className="chat-panel" aria-label="Pi chat">
+      {documentPath && <div className="chat-heading"><span className="seed">✳</span> Pi <span>Your design partner</span></div>}
     <main ref={scroller} onScroll={() => {
       const el = scroller.current!;
       follow.current = el.scrollHeight - el.scrollTop - el.clientHeight < 100;
@@ -170,6 +199,33 @@ function App() {
       </form>
       <div className="footnote"><span>Pi can edit files and run commands in this workspace.</span><span>Enter to {state.busy ? 'steer' : 'send'} · Shift + Enter for a new line</span></div>
     </footer>
+      </section>
+      {documentPath && <div className="panel-resizer" role="separator" tabIndex={0}
+        aria-label="Resize chat panel" aria-orientation="vertical" aria-valuemin={320} aria-valuemax={900} aria-valuenow={chatWidth}
+        onDoubleClick={() => resizeChat(480)}
+        onPointerDown={event => {
+          if (event.button !== 0) return;
+          event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId);
+          drag.current = { x: event.clientX, width: event.currentTarget.previousElementSibling!.getBoundingClientRect().width };
+          setResizing(true);
+        }} onPointerMove={event => {
+          if (drag.current) resizeChat(drag.current.width + event.clientX - drag.current.x);
+        }} onPointerUp={event => {
+          drag.current = null; setResizing(false); event.currentTarget.releasePointerCapture(event.pointerId);
+        }} onLostPointerCapture={() => { drag.current = null; setResizing(false); }}
+        onKeyDown={event => {
+          if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
+            event.preventDefault();
+            const current = event.currentTarget.previousElementSibling!.getBoundingClientRect().width;
+            resizeChat(event.key === 'Home' ? 320 : event.key === 'End' ? 900 : current + (event.key === 'ArrowRight' ? 1 : -1) * (event.shiftKey ? 80 : 20));
+          }
+        }} />}
+      {documentPath && <DocumentView key={documentPath} path={documentPath} busy={state.busy}
+        onClose={() => openDocument('')} onReview={text => {
+          setDraft(current => current.trim() ? `${current}\n\n${text}` : text);
+          input.current?.focus();
+        }} />}
+    </div>
   </div>;
 }
 
