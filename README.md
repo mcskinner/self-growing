@@ -72,7 +72,7 @@ uv can install it if needed. Ctrl+C stops the dev servers.
 
 - **React + Vite** provide the app shell and live frontend updates.
 - A small **Lit web component** renders Markdown replies. Thinking and tool activity are
-  hidden by default; enable them under **Chat display**. Only unrecovered provider failures
+  hidden by default; enable them under **Settings**. Only unrecovered provider failures
   are shown as errors; internal retry attempts stay out of the way.
   This is a purpose-built RPC mirror, not the full `pi-web-ui` package or a terminal emulator.
 - **FastAPI** starts `pi --mode rpc` in this repository for each turn. Pi resumes the

@@ -112,7 +112,7 @@ function Chat({ state, connected }: { state: State; connected: boolean }) {
   async function changeChat(sessionId?: string) {
     if (switchingBlocked || sessionId === state.sessionId) return;
     if (!sessionId && !window.confirm('Start a fresh chat? This conversation stays saved. Your draft will stay with this chat.')) return;
-    setStartingSession(true); setError('');
+    setStartingSession(true); setError(''); setHistoryOpen(false);
     try {
       await messages.pauseAndWait();
       const response = await fetch(sessionId ? '/api/session/switch' : '/api/session/new', {
@@ -145,10 +145,22 @@ function Chat({ state, connected }: { state: State; connected: boolean }) {
   const visibleError = error || messages.error || composerError(state.error, state.messages, state.busy);
 
   return <div className="app">
-    <header><a className="brand" href="/" aria-label="Self-growing home"><span className="seed">✳</span> self-growing</a>
-      <div className="header-actions"><button className="quiet-button" onClick={() => setHistoryOpen(true)}
-        aria-haspopup="dialog" aria-expanded={historyOpen}>Chats</button><ChatDisplay showDetails={showDetails} onChange={setShowDetails} />
-        <span className="connection"><i className={connected ? 'online' : ''} />{connected ? 'Local workspace' : 'Connecting…'}</span></div>
+    <header>
+      <div className="header-start">
+        <button className="icon-button" onClick={() => setHistoryOpen(true)} aria-label="Chats" title="Chats"
+          aria-haspopup="dialog" aria-controls="chat-history" aria-expanded={historyOpen}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"
+            strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+            <rect x="3" y="4" width="18" height="16" rx="2" />
+            <path d="M9 4v16" />
+          </svg>
+        </button>
+      </div>
+      <a className="brand" href="/" aria-label="Self-growing home"><span className="seed" aria-hidden="true">✳</span><span className="brand-name">self-growing</span></a>
+      <div className="header-actions">
+        <span className="connection"><i className={connected ? 'online' : ''} />{connected ? 'Local workspace' : 'Connecting…'}</span>
+        <ChatDisplay showDetails={showDetails} onChange={setShowDetails} />
+      </div>
     </header>
     <ChatHistory open={historyOpen} currentId={state.sessionId} blocked={switchingBlocked} switching={startingSession}
       onClose={() => setHistoryOpen(false)} onSelect={id => void changeChat(id)} onNew={() => void changeChat()} />
