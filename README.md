@@ -136,7 +136,6 @@ messages remain saved. Use **New chat** for a fresh conversation; old sessions r
 {
   "comments": [
     {
-      "id": "21e54ec0a7bd480c895ac2c0a3d4601f",
       "text": "Do we really need the latest version? I'm also curious how these look on disk.",
       "quote": "Pi 1.5.0+",
       "anchor": {
@@ -145,19 +144,20 @@ messages remain saved. Use **New chat** for a fresh conversation; old sessions r
         "prefix": "atabase.\nStart\nYou need uv, Node.js 22.19+, and ",
         "suffix": " on your PATH.\nThe RPC integration is tested wit"
       },
-      "resolved": false
+      "id": "21e54ec0a7bd480c895ac2c0a3d4601f",
+      "resolved": true
     },
     {
-      "id": "0d4f52d892774583a9252a9cf8a9ab62",
-      "text": "Why not pi-web-ui? What does that buy us?",
-      "quote": "not the full pi-web-ui package or a terminal emulator.",
+      "text": "Why not pi\u002dweb\u002dui? What does that buy us?",
+      "quote": "not the full pi\u002dweb\u002dui package or a terminal emulator.",
       "anchor": {
         "start": 1175,
         "end": 1229,
-        "prefix": "nd results.\nThis is a purpose-built RPC mirror, ",
-        "suffix": "\nFastAPI starts pi --mode rpc in this repository"
+        "prefix": "nd results.\nThis is a purpose\u002dbuilt RPC mirror, ",
+        "suffix": "\nFastAPI starts pi \u002d\u002dmode rpc in this repository"
       },
-      "resolved": false
+      "id": "0d4f52d892774583a9252a9cf8a9ab62",
+      "resolved": true
     }
   ]
 }
