@@ -1,116 +1,90 @@
-import { useEffect, useRef, useState, type ReactNode, type MouseEvent } from 'react';
-import { renderMarkdown } from './markdown';
+import { useEffect, useMemo, useState } from 'react';
+import DOMPurify from 'dompurify';
+import { marked } from 'marked';
 
-interface DocumentData { path: string; name: string; content: string }
-const clamp = (value: number) => Math.min(70, Math.max(30, value));
+async function request<T>(url: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(url, init);
+  if (!response.ok) throw new Error((await response.json()).detail || 'Request failed');
+  return response.json();
+}
 
-export function ReaderLayout({ busy, children }: { busy: boolean; children: ReactNode }) {
-  const [path, setPath] = useState(() => sessionStorage.getItem('open-document') || '');
-  const [entry, setEntry] = useState('');
-  const [picker, setPicker] = useState(false);
-  const [choosing, setChoosing] = useState(false);
-  const [chooserError, setChooserError] = useState('');
-  const [data, setData] = useState<DocumentData | null>(null);
-  const [html, setHtml] = useState('');
+export function DocumentPicker({ onOpen }: { onOpen: (path: string) => void }) {
+  const [opening, setOpening] = useState(false);
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [retry, setRetry] = useState(0);
-  const [width, setWidth] = useState(() => {
-    const saved = Number(localStorage.getItem('reader-width') || 50);
-    return Number.isFinite(saved) ? clamp(saved) : 50;
-  });
-  const panes = useRef<HTMLDivElement>(null);
-  const previousBusy = useRef(busy);
-  const choiceVersion = useRef(0);
-
-  useEffect(() => {
-    if (previousBusy.current && !busy) setRetry(value => value + 1);
-    previousBusy.current = busy;
-  }, [busy]);
-  useEffect(() => { localStorage.setItem('reader-width', String(width)); }, [width]);
-  useEffect(() => {
-    sessionStorage.setItem('open-document', path);
-    setData(null); setHtml(''); setError('');
-    if (!path) { setLoading(false); return; }
-    const controller = new AbortController();
-    setLoading(true);
-    void (async () => {
-      try {
-        const response = await fetch(`/api/documents?path=${encodeURIComponent(path)}`, { signal: controller.signal });
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.detail || 'Could not read Markdown');
-        if (controller.signal.aborted) return;
-        setHtml(renderMarkdown(result.content, result.path)); setData(result);
-      } catch (err) {
-        if (!controller.signal.aborted) setError(String(err));
-      } finally { if (!controller.signal.aborted) setLoading(false); }
-    })();
-    return () => controller.abort();
-  }, [path, retry]);
-
-  function open(value: string) {
-    choiceVersion.current++;
-    setPath(value); setRetry(count => count + 1); setPicker(false); setChooserError('');
-  }
-  function followLink(event: MouseEvent<HTMLElement>) {
-    const link = (event.target as HTMLElement).closest<HTMLAnchorElement>('a[data-reader-path]');
-    if (!link || event.button > 1) return;
-    event.preventDefault();
-    open(link.dataset.readerPath!);
-  }
-  async function choose() {
-    const version = ++choiceVersion.current;
-    setChoosing(true); setChooserError('');
+  async function open() {
+    setOpening(true); setError('');
     try {
-      const response = await fetch('/api/documents/choose', { method: 'POST' });
-      const result = await response.json();
-      if (version !== choiceVersion.current) return;
-      if (!response.ok) throw new Error(result.detail || 'Could not choose a file');
-      if (result.path) open(result.path);
-    } catch (err) { if (version === choiceVersion.current) setChooserError(String(err)); }
-    finally { setChoosing(false); }
+      const result = await request<{ path: string | null }>('/api/documents/pick', { method: 'POST' });
+      if (result.path) onOpen(result.path);
+    } catch (err) { setError(String(err)); }
+    finally { setOpening(false); }
+  }
+  return <div className="document-picker">
+    <button className="icon-button" disabled={opening} aria-label="Open document" title={opening ? 'Choosing document…' : 'Open document'}
+      aria-busy={opening} onClick={() => void open()}>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"
+        strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+        <path d="M20 20H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2Z" />
+      </svg>
+    </button>
+    {error && <span className="error" role="alert">{error} <button className="quiet-button" onClick={() => void open()}>Retry</button></span>}
+  </div>;
+}
+
+interface Document { path: string; content: string }
+
+export function DocumentView({ path, busy, onClose, onOpen }: {
+  path: string; busy: boolean; onClose: () => void; onOpen: (path: string) => void;
+}) {
+  const [doc, setDoc] = useState<Document | null>(null);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  useEffect(() => {
+    const controller = new AbortController();
+    setLoading(true); setError('');
+    request<Document>(`/api/documents/content?path=${encodeURIComponent(path)}`, { signal: controller.signal }).then(data => {
+      if (!controller.signal.aborted) setDoc(data);
+    }).catch(err => {
+      if (!controller.signal.aborted) setError(err instanceof Error ? err.message : String(err));
+    }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    return () => controller.abort();
+  }, [path, busy, loadAttempt]);
+  const html = useMemo(() => DOMPurify.sanitize(marked.parse(doc?.content || '', { async: false }), {
+    ALLOWED_TAGS: ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'br', 'hr', 'ul', 'ol', 'li', 'blockquote',
+      'pre', 'code', 'em', 'strong', 'del', 's', 'a', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'sup', 'sub'],
+    ALLOWED_ATTR: ['href', 'title', 'start', 'colspan', 'rowspan', 'align', 'id'],
+  }), [doc?.content]);
+
+  async function followLink(href: string) {
+    try {
+      setError('');
+      const result = await request<{ path: string }>(`/api/documents/resolve?path=${encodeURIComponent(doc?.path || path)}&link=${encodeURIComponent(href)}`);
+      onOpen(result.path);
+    } catch (err) { setError(err instanceof Error ? err.message : String(err)); }
   }
 
-  return <div className="reader-shell">
-    <div className="reader-toolbar">
-      <button className="quiet-button" onClick={() => { setPicker(value => !value); setChooserError(''); }}
-        aria-expanded={picker}>Open Markdown</button>
-      {path && <><span className="document-path" title={data?.path || path}>{data?.path || path}</span>
-        <button className="quiet-button" onClick={() => setRetry(value => value + 1)}>Refresh</button>
-        <button className="quiet-button" onClick={() => { choiceVersion.current++; setPath(''); }}>Close document</button></>}
+  return <section className="document-panel" aria-label="Markdown reader">
+    <div className="document-toolbar"><div><span className="eyebrow">DOCUMENT</span><strong title={doc?.path || path}>{doc?.path || path}</strong></div>
+      <button className="icon-button" onClick={onClose} aria-label="Close document" title="Close document">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"
+          strokeLinecap="round" aria-hidden="true" focusable="false"><path d="m6 6 12 12M18 6 6 18" /></svg>
+      </button></div>
+    <div className="document-scroll" aria-busy={loading}>
+      {loading && <p role="status">Loading document…</p>}
+      {error && <div className="error" role="alert">{error} <button className="quiet-button" disabled={loading}
+        onClick={() => setLoadAttempt(attempt => attempt + 1)}>Retry</button></div>}
+      {doc && <article className="markdown-document" dangerouslySetInnerHTML={{ __html: html }} onClick={event => {
+        const link = (event.target as HTMLElement).closest('a');
+        if (!link) return;
+        const href = link.getAttribute('href') || '';
+        event.preventDefault();
+        if (href.startsWith('#')) {
+          try { event.currentTarget.querySelector(`#${CSS.escape(decodeURIComponent(href.slice(1)))}`)?.scrollIntoView({ block: 'nearest' }); } catch { /* Invalid fragment. */ }
+        } else if (!/^[a-z][a-z\d+.-]*:|^\/\//i.test(href) && /\.(md|markdown)(?:[?#]|$)/i.test(href)) {
+          void followLink(href);
+        } else if (/^https?:\/\//i.test(href)) window.open(href, '_blank', 'noopener,noreferrer');
+      }} />}
     </div>
-    {picker && <div className="document-picker">
-      <button className="quiet-button" disabled={choosing} onClick={() => void choose()}>{choosing ? 'Choosing…' : 'Choose local file…'}</button>
-      <form onSubmit={event => { event.preventDefault(); if (entry.trim()) open(entry.trim()); }}>
-        <label htmlFor="document-path">Or local path</label>
-        <input id="document-path" value={entry} onChange={event => setEntry(event.target.value)} placeholder="/path/to/file.md" />
-        <button className="quiet-button" disabled={!entry.trim()}>Open</button>
-      </form>
-      <button className="quiet-button" onClick={() => { choiceVersion.current++; setPicker(false); }}>Cancel</button>
-      {chooserError && <p className="error" role="alert">{chooserError} <button className="quiet-button" disabled={choosing} onClick={() => void choose()}>Retry</button></p>}
-    </div>}
-    <div className={`reader-panes${path ? ' has-document' : ''}`} ref={panes}>
-      {path && <><section className="document-pane" aria-label="Markdown reader" style={{ flexBasis: `${width}%` }}>
-        {loading && <p className="reader-notice" role="status">Loading Markdown…</p>}
-        {error && <div className="reader-notice error" role="alert">{error} <button className="quiet-button" onClick={() => setRetry(value => value + 1)}>Retry</button></div>}
-        {data && <article className="markdown-document" onClick={followLink} onAuxClick={followLink}
-          dangerouslySetInnerHTML={{ __html: html }} />}
-      </section>
-      <div className="reader-separator" role="separator" tabIndex={0} aria-label="Reader width" aria-orientation="vertical"
-        aria-valuemin={30} aria-valuemax={70} aria-valuenow={Math.round(width)} aria-controls="reader-chat"
-        onPointerDown={event => { event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId); }}
-        onPointerMove={event => {
-          if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
-          const rect = panes.current!.getBoundingClientRect();
-          setWidth(clamp((event.clientX - rect.left) / rect.width * 100));
-        }}
-        onPointerUp={event => { if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }}
-        onKeyDown={event => {
-          const values: Record<string, number> = { ArrowLeft: width - 2, ArrowRight: width + 2, Home: 30, End: 70 };
-          if (event.key in values) { event.preventDefault(); setWidth(clamp(values[event.key])); }
-        }} />
-      </>}
-      <div className="reader-chat" id="reader-chat">{children}</div>
-    </div>
-  </div>;
+  </section>;
 }

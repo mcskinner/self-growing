@@ -1,0 +1,53 @@
+.app.workspace { display: grid; grid-template-columns: clamp(320px, var(--chat-width, 480px), calc(100% - 393px)) 9px minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+.workspace > header { grid-column: 1 / -1; grid-row: 1; }
+.chat-panel { grid-column: 1; grid-row: 2; min-height: 0; min-width: 0; display: flex; flex-direction: column; }
+.document-picker { position: relative; flex-shrink: 0; display: flex; align-items: center; }
+.document-picker .error { position: absolute; right: 0; top: calc(100% + 8px); z-index: 20; width: max-content; max-width: min(320px, calc(100vw - 32px)); margin: 0; padding: 12px; font-size: 12px; background: #fffefa; border: 1px solid #dce1d3; border-radius: 8px; }
+.panel-resizer { grid-column: 2; grid-row: 2; cursor: col-resize; touch-action: none; position: relative; outline-offset: -2px; }
+.panel-resizer::after { content: ''; position: absolute; top: 0; bottom: 0; left: 4px; width: 1px; background: #e0e2d8; }
+.panel-resizer:hover::after, .panel-resizer:focus-visible::after, .resizing .panel-resizer::after { width: 3px; left: 3px; background: #9cae8c; }
+.panel-resizer:focus-visible { outline: 2px solid #6f8859; }
+.resizing { cursor: col-resize; user-select: none; }
+.chat-heading { display: flex; gap: 10px; align-items: center; padding: 16px 24px; font-size: 14px; border-bottom: 1px solid #e6e7de; }
+.chat-heading .seed { position: static; transform: none; font-size: 22px; }
+.chat-heading > span:last-child { color: #929889; margin-left: auto; font-size: 11px; }
+.workspace .conversation { padding: 24px 20px; }
+.workspace footer { width: calc(100% - 32px); padding-bottom: 16px; }
+.workspace .footnote span:last-child { display: none; }
+.workspace .welcome { padding-top: 40px; }
+.workspace .welcome h1 { font-size: 30px; }
+.document-panel { grid-column: 3; grid-row: 2; min-height: 0; min-width: 0; display: flex; flex-direction: column; margin-right: 24px; }
+.document-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 28px; border-bottom: 1px solid #e6e7de; }
+.document-toolbar > div { min-width: 0; }
+.document-toolbar .eyebrow { display: block; font-size: 10px; margin-bottom: 6px; }
+.document-toolbar strong { display: block; font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.document-scroll { overflow: auto; flex: 1; min-height: 0; padding: 28px 24px 60px; }
+.markdown-document { min-width: 0; margin: 0; padding: 0 12px; font-size: 15px; line-height: 1.85; overflow-wrap: anywhere; }
+.markdown-document h1 { font-size: 36px; line-height: 1.25; }
+.markdown-document h2, .markdown-document h3 { line-height: 1.4; margin-top: 32px; letter-spacing: -.025em; }
+.markdown-document h2 { font-size: 24px; }
+.markdown-document h3 { font-size: 19px; }
+.markdown-document a { color: #516f42; text-underline-offset: 3px; }
+.markdown-document pre { overflow-x: auto; padding: 20px; background: #eeeee7; border-radius: 8px; line-height: 1.6; }
+.markdown-document code { font-size: .86em; background: #eeeee7; padding: 2px 4px; border-radius: 3px; }
+.markdown-document pre code { padding: 0; }
+.markdown-document table { display: block; border-collapse: collapse; overflow-x: auto; }
+.markdown-document th, .markdown-document td { border: 1px solid #dcdfd2; padding: 8px 12px; }
+.markdown-document blockquote { margin: 12px 0; padding-left: 16px; border-left: 2px solid #abb99e; color: #747e6c; white-space: pre-wrap; }
+.markdown-document hr { border: 0; border-top: 1px solid #dcdfd2; margin: 32px 0; }
+.workspace-empty { grid-column: 3; grid-row: 2; padding: 48px 36px; color: #858b7e; font-size: 14px; }
+.workspace-empty .eyebrow { font-size: 10px; }
+@media (max-width: 1000px) {
+  .app.workspace { grid-template-columns: clamp(320px, var(--chat-width, 480px), calc(100% - 369px)) 9px minmax(0, 1fr); }
+  .document-panel { margin-right: 0; }
+  .document-scroll { padding: 24px 16px 48px; }
+}
+@media (max-width: 760px) {
+  .app.workspace { display: flex; flex-direction: column; overflow-y: auto; }
+  .panel-resizer { display: none; }
+  .document-panel { flex: none; }
+  .document-scroll { overflow: auto; max-height: 85dvh; flex: none; }
+  .chat-panel { flex: none; min-height: 65dvh; border-bottom: 1px solid #dcdfd2; }
+  .chat-panel main { max-height: 55dvh; flex: auto; }
+  .document-toolbar { padding: 16px 20px; }
+}

@@ -1,70 +1,97 @@
-"""Read original local Markdown files; never import or write document state."""
+"""Read original Markdown files without imports, metadata, or document writes."""
 
 import asyncio
-import stat
 import sys
 from pathlib import Path
+from urllib.parse import unquote, urlsplit
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException
 
 router = APIRouter(prefix="/api/documents")
+ROOT = Path(__file__).resolve().parents[1]
 MAX_BYTES = 2_000_000
 
 
-def read_document(value: str):
+def document_path(path: str) -> Path:
     try:
-        requested = Path(value).expanduser()
-        path = requested.resolve()
-        if not requested.is_absolute() and not path.is_relative_to(Path.cwd().resolve()):
-            raise HTTPException(403, "Relative path leaves the workspace")
-        if path.suffix.lower() not in {".md", ".markdown"}:
-            raise HTTPException(422, "Choose a .md or .markdown file")
-        if not stat.S_ISREG(path.stat().st_mode):
-            raise HTTPException(422, "Choose a regular Markdown file")
-        with path.open("rb") as source:
-            data = source.read(MAX_BYTES + 1)
+        supplied = Path(path)
+        target = (ROOT / supplied).resolve()
+        if not supplied.is_absolute() and not target.is_relative_to(ROOT.resolve()):
+            raise HTTPException(404, "Markdown document not found")
+        if target.suffix.lower() not in {".md", ".markdown"} or not target.is_file():
+            raise HTTPException(404, "Markdown document not found")
+        return target
+    except (OSError, ValueError, RuntimeError):
+        raise HTTPException(404, "Markdown document not found") from None
+
+
+def read_document(target: Path):
+    try:
+        with target.open("rb") as file:
+            data = file.read(MAX_BYTES + 1)
         if len(data) > MAX_BYTES:
-            raise HTTPException(413, "Markdown files must be at most 2 MB")
-        return {"path": str(path), "name": path.name, "content": data.decode("utf-8")}
-    except UnicodeDecodeError as exc:
-        raise HTTPException(422, "Markdown must be UTF-8") from exc
-    except (OSError, ValueError) as exc:
-        raise HTTPException(404, "Cannot read this Markdown file") from exc
-
-
-@router.get("")
-def content(path: str = Query(min_length=1, max_length=4096)):
-    return read_document(path)
+            raise HTTPException(413, "Document is too large (maximum 2 MB)")
+        return {"path": str(target), "content": data.decode("utf-8")}
+    except UnicodeDecodeError:
+        raise HTTPException(422, "Document is not UTF-8 text") from None
+    except OSError:
+        raise HTTPException(404, "Cannot read Markdown document") from None
 
 
 async def choose_markdown_file():
     if sys.platform != "darwin":
-        raise HTTPException(501, "Native chooser unavailable; enter a local path instead")
+        raise HTTPException(501, "The native file chooser currently supports macOS only")
+    script = """try
+        set picked to choose file with prompt "Open Markdown" of type {"md", "markdown"}
+        return POSIX path of picked
+    on error number -128
+        return ""
+    end try"""
     process = await asyncio.create_subprocess_exec(
-        "osascript",
+        "/usr/bin/osascript",
         "-e",
-        'try\nPOSIX path of (choose file with prompt "Open Markdown" '
-        'of type {"md", "markdown"})\non error number -128\nreturn ""\nend try',
+        script,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
     try:
-        stdout, _ = await asyncio.wait_for(process.communicate(), timeout=120)
-    except (TimeoutError, asyncio.CancelledError):
-        process.kill()
-        await process.wait()
-        raise
+        async with asyncio.timeout(300):
+            stdout, stderr = await process.communicate()
+    except TimeoutError:
+        raise HTTPException(504, "File chooser timed out; please retry") from None
+    finally:
+        if process.returncode is None:
+            process.kill()
+            await process.wait()
     if process.returncode:
-        raise HTTPException(503, "File chooser failed; enter a local path instead")
-    return stdout.decode("utf-8").strip() or None
+        raise HTTPException(500, f"Could not open file chooser: {stderr.decode().strip()}")
+    return stdout.decode().rstrip("\r\n")
 
 
-@router.post("/choose")
-async def choose():
+@router.post("/pick")
+async def pick_document():
+    selected = await choose_markdown_file()
+    if not selected:
+        return {"path": None}
+    return {"path": read_document(document_path(selected))["path"]}
+
+
+@router.get("/content")
+async def get_document(path: str):
+    return read_document(document_path(path))
+
+
+@router.get("/resolve")
+async def resolve_document(path: str, link: str):
     try:
-        path = await choose_markdown_file()
-    except TimeoutError as exc:
-        raise HTTPException(408, "File chooser timed out; try again") from exc
-    except OSError as exc:
-        raise HTTPException(503, "File chooser unavailable; enter a local path instead") from exc
-    return {"path": path}
+        url = urlsplit(link)
+        if url.scheme or url.netloc or not url.path:
+            raise ValueError
+        current = document_path(path)
+        relative = Path(unquote(url.path))
+        target = (current.parent / relative).resolve()
+        if not Path(path).is_absolute() and not target.is_relative_to(ROOT.resolve()):
+            raise ValueError
+    except (ValueError, OSError, RuntimeError):
+        raise HTTPException(422, "Invalid document link") from None
+    return {"path": read_document(document_path(str(target)))["path"]}

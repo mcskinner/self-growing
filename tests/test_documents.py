@@ -1,111 +1,86 @@
-import hashlib
+import asyncio
 from pathlib import Path
 
 import pytest
-from fastapi import FastAPI
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from backend import documents
+from backend.app import app
 
 
 @pytest.fixture
-def client(tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path)
-    app = FastAPI()
-    app.include_router(documents.router)
-    return TestClient(app)
+def files(tmp_path, monkeypatch):
+    root = tmp_path / "workspace"
+    root.mkdir()
+    monkeypatch.setattr(documents, "ROOT", root)
+    (root / "index.md").write_text("# Index\n[next](next.markdown)")
+    (root / "next.markdown").write_text("# Next")
+    outside = tmp_path / "outside.md"
+    outside.write_text("# Outside")
+    return root, outside
 
 
-def test_original_external_and_workspace_reads_are_read_only(client, tmp_path):
-    workspace = tmp_path / "workspace"
-    workspace.mkdir()
-    original = tmp_path / "original.markdown"
-    original.write_text("# Original\n\nCafé", encoding="utf-8")
-    before = hashlib.sha256(original.read_bytes()).hexdigest()
-    contents_before = sorted(tmp_path.rglob("*"))
-    for path in [str(original), "original.markdown"]:
-        response = client.get("/api/documents", params={"path": path})
-        assert response.status_code == 200
-        assert response.json() == {
-            "path": str(original),
-            "name": original.name,
-            "content": "# Original\n\nCafé",
-        }
-    assert hashlib.sha256(original.read_bytes()).hexdigest() == before
-    assert sorted(tmp_path.rglob("*")) == contents_before
-
-
-def test_resolved_link_targets_read_originals_without_imports(client, tmp_path, monkeypatch):
-    # The reader resolves links against the canonical path returned by this API,
-    # not the workspace. Explicit absolute reads already allow outside originals.
-    workspace = tmp_path / "workspace"
-    workspace.mkdir()
-    monkeypatch.chdir(workspace)
-    originals = tmp_path / "originals"
-    (originals / "docs").mkdir(parents=True)
-    (originals / "guides").mkdir()
-    start = originals / "docs" / "start.md"
-    target = originals / "guides" / "next file.markdown"
-    start.write_text("[Next](../guides/next%20file.markdown#section)")
-    target.write_text("# Linked original")
-    before = {path: path.read_bytes() for path in [start, target]}
-    entries = sorted(tmp_path.rglob("*"))
-    source = client.get("/api/documents", params={"path": str(start)}).json()
-    resolved = (Path(source["path"]).parent / "../guides/next file.markdown").resolve()
-    response = client.get("/api/documents", params={"path": str(resolved)})
-    assert response.status_code == 200
-    assert response.json()["content"] == "# Linked original"
-    target.write_text("# Changed in place")
+def test_read_and_links_are_read_only(files):
+    root, outside = files
+    client = TestClient(app)  # No lifespan: never connects to Pi.
+    before = {p: p.read_bytes() for p in root.parent.rglob("*") if p.is_file()}
     assert (
-        client.get("/api/documents", params={"path": str(resolved)}).json()["content"]
-        == "# Changed in place"
+        client.get("/api/documents/content", params={"path": "index.md"})
+        .json()["content"]
+        .startswith("# Index")
     )
-    target.write_bytes(before[target])
-    assert {path: path.read_bytes() for path in before} == before
-    assert sorted(tmp_path.rglob("*")) == entries
+    result = client.get(
+        "/api/documents/resolve", params={"path": "index.md", "link": "next.markdown#part"}
+    )
+    assert result.json()["path"] == str(root / "next.markdown")
+    assert client.get("/api/documents/content", params={"path": str(outside)}).status_code == 200
+    assert before == {p: p.read_bytes() for p in root.parent.rglob("*") if p.is_file()}
+    assert client.post("/api/documents/comments").status_code == 404
 
 
-def test_boundaries(client, tmp_path):
-    (tmp_path / "bad.md").write_bytes(b"\xff")
-    (tmp_path / "large.md").write_bytes(b"a" * (documents.MAX_BYTES + 1))
-    (tmp_path / "plain.txt").write_text("not markdown")
-    (tmp_path / "folder.md").mkdir()
-    for name, status in [
-        ("bad.md", 422),
+def test_invalid_documents(files):
+    root, outside = files
+    (root / "escape.md").symlink_to(outside)
+    (root / "binary.md").write_bytes(b"\xff")
+    (root / "large.md").write_bytes(b"x" * (documents.MAX_BYTES + 1))
+    (root / "wrong.txt").write_text("hello")
+    client = TestClient(app)
+    for path, status in [
+        ("../outside.md", 404),
+        ("escape.md", 404),
+        ("binary.md", 422),
         ("large.md", 413),
-        ("plain.txt", 422),
-        ("folder.md", 422),
-        ("absent.md", 404),
-        ("../escape.md", 403),
+        ("wrong.txt", 404),
+        ("missing.md", 404),
     ]:
-        assert client.get("/api/documents", params={"path": name}).status_code == status
-    outside = tmp_path.parent / f"{tmp_path.name}-outside.md"
-    try:
-        outside.write_text("# Outside")
-        (tmp_path / "escape.md").symlink_to(outside)
-        assert client.get("/api/documents", params={"path": "escape.md"}).status_code == 403
-        # Explicit absolute paths support originals outside the workspace.
-        assert client.get("/api/documents", params={"path": str(outside)}).status_code == 200
-    finally:
-        outside.unlink(missing_ok=True)
-    (tmp_path / "wrong.md").symlink_to(tmp_path / "plain.txt")
-    assert client.get("/api/documents", params={"path": "wrong.md"}).status_code == 422
+        assert client.get("/api/documents/content", params={"path": path}).status_code == status
+    for link in ["https://example.com/x.md", "../outside.md", "//example.com/x.md"]:
+        assert (
+            client.get(
+                "/api/documents/resolve", params={"path": "index.md", "link": link}
+            ).status_code
+            == 422
+        )
 
 
-@pytest.mark.parametrize("selected", [None, "/elsewhere/original.md"])
-def test_choose_does_not_copy_or_read(client, monkeypatch, selected):
-    async def choose():
-        return selected
+def test_picker_cancel_and_outside(files, monkeypatch):
+    _, outside = files
 
-    monkeypatch.setattr(documents, "choose_markdown_file", choose)
-    before = list(Path.cwd().iterdir())
-    assert client.post("/api/documents/choose").json() == {"path": selected}
-    assert list(Path.cwd().iterdir()) == before
+    async def cancel():
+        return ""
+
+    monkeypatch.setattr(documents, "choose_markdown_file", cancel)
+    assert asyncio.run(documents.pick_document()) == {"path": None}
+
+    async def select():
+        return str(outside)
+
+    monkeypatch.setattr(documents, "choose_markdown_file", select)
+    assert asyncio.run(documents.pick_document()) == {"path": str(outside)}
 
 
-def test_chooser_failure_visible(client, monkeypatch):
-    async def choose():
-        raise OSError("unavailable")
-
-    monkeypatch.setattr(documents, "choose_markdown_file", choose)
-    assert client.post("/api/documents/choose").status_code == 503
+def test_bad_path(files):
+    with pytest.raises(HTTPException):
+        documents.document_path("bad\0.md")
+    assert isinstance(documents.ROOT, Path)
