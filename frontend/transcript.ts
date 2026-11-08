@@ -3,6 +3,7 @@ import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
 import { visibleMessages } from './transcript-visibility';
+import { providerErrorText } from './chat-errors';
 
 export interface Block {
   type: string;
@@ -26,14 +27,16 @@ const markdown = (text: string) => unsafeHTML(DOMPurify.sanitize(
 
 /** Presentation only: no model calls, credentials, or browser-side agent tools. */
 export class Transcript extends LitElement {
-  static properties = { messages: { attribute: false }, showDetails: { attribute: false } };
+  static properties = { messages: { attribute: false }, showDetails: { attribute: false }, busy: { attribute: false } };
   declare messages: Message[];
   declare showDetails: boolean;
+  declare busy: boolean;
 
   constructor() {
     super();
     this.messages = [];
     this.showDetails = false;
+    this.busy = false;
   }
 
   static styles = css`
@@ -66,7 +69,7 @@ export class Transcript extends LitElement {
   `;
 
   render() {
-    return html`${visibleMessages(this.messages, this.showDetails).map(message => {
+    return html`${visibleMessages(this.messages, this.showDetails, this.busy).map(message => {
       const blocks = typeof message.content === 'string'
         ? [{ type: 'text', text: message.content }] : message.content;
       if (message.role === 'toolResult') {
@@ -86,7 +89,7 @@ export class Transcript extends LitElement {
             <pre>${JSON.stringify(block.arguments, null, 2)}</pre></details>`;
           return nothing;
         })}</div>
-        ${message.errorMessage ? html`<p class="error">${message.errorMessage}</p>` : nothing}
+        ${message.errorMessage ? html`<p class="error" role="alert">${providerErrorText(message.errorMessage)}</p>` : nothing}
       </article>`;
     })}`;
   }
