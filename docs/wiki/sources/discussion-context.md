@@ -31,7 +31,9 @@ The assistant initially recommended two repositories and later a simple notes co
 
 The adaptation scaffold was committed as [3414970](https://github.com/mcskinner/self-growing/commit/3414970); the link resolves remotely only once that commit is pushed. It includes a minimal skill, a file-based CLI, left-chat reference evidence, an application record, evaluation logs, and a protocol. See the [lab guide](../../../adaptations/README.md) and [smoke-trial feedback](../../../adaptations/left-chat/applications/starter-smoke-01/feedback.md).
 
-The smoke trial was performed by the same agent that built the framework, with prior source knowledge. Automated checks passed after environment normalization; browser and live-chat acceptance were not tested. No independent transfer, federated submission system, shared registry, or automated prompt-hardening loop has been demonstrated.
+The smoke trial was performed by the same agent that built the framework, with prior source knowledge. Automated checks passed after environment normalization; browser and live-chat acceptance were not tested. At the initial wiki filing, no independent transfer, federated submission system, shared registry, or automated prompt-hardening loop had been demonstrated.
+
+Subsequently, the [Markdown-reader experiment](../../../adaptations/markdown-reader/README.md) recorded fresh distillation and independent starter/workshop applications using the existing skill and machinery unchanged. Both passed automated evaluation; coordinator browser checks found a relative-link gap and verified a separate prompted repair with mocked APIs/chat. The reader and repair were then integrated into trunk. This does not establish live-provider acceptance, automatic hardening, or a federated service.
 
 ## External influence
 

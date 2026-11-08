@@ -1,0 +1,38 @@
+{
+  "head": "6cc23d9fbcc385b1fb4d4652a5a031df9449294c",
+  "environment": "isolated production build with intercepted HTTP and mocked document/chat/SSE; no live app/provider or native dialog",
+  "results": [
+    {
+      "name": "open file beside existing chat; readable and inert Markdown",
+      "passed": true
+    },
+    {
+      "name": "settings menu remains usable beside reader",
+      "passed": true
+    },
+    {
+      "name": "desktop resize and independent overflow",
+      "passed": true
+    },
+    {
+      "name": "relative Markdown link opens the next document without leaving chat",
+      "passed": true
+    },
+    {
+      "name": "reader survives reload, cancel, errors and retry",
+      "passed": true
+    },
+    {
+      "name": "mocked send, response rendering, steer, stop, and post-work refresh",
+      "passed": true
+    },
+    {
+      "name": "narrow viewport preserves reading, chat, and controls without horizontal overflow",
+      "passed": true
+    },
+    {
+      "name": "no page JavaScript errors",
+      "passed": true
+    }
+  ]
+}

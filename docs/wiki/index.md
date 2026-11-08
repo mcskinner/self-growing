@@ -23,4 +23,5 @@ This is a working wiki, not a plan to build everything below. [Conventions](READ
 - [Discussion context](sources/discussion-context.md) — summarized subsequent decisions and ideas from this chat; not a raw transcript.
 - [Adaptation lab](../../adaptations/README.md) — implemented capture/application/evaluation workflow.
 - [First experiment protocol](../../experiments/adaptation-loop/protocol.md) — plan, initial results, and limits of the evidence.
+- [Markdown-reader transfer](../../adaptations/markdown-reader/README.md) — frozen distillation, two blind applications, an independently found gap, and a separate prompted repair.
 - [LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) — inspiration for persistent synthesis, the index, log, and lint loop.

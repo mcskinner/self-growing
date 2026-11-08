@@ -27,3 +27,9 @@ Captured the user's proposal for [acceptance and verification](acceptance-and-ve
 ## [2026-11-08] review | Coordinator-prompted Markdown-reader repair
 
 The coordinator reported that the preserved first application passed automated and isolated browser checks but failed relative Markdown-link navigation: sanitization removed the links' hrefs. This repair adds document-relative navigation and targeted renderer, reader-lifecycle, and read-only API tests without changing the adaptation description. It is a prompted repair, not evidence of a blind first transfer. Automated regression coverage now exercises the missing behavior; live browser/provider acceptance was not rerun. This reinforces the distinction between passing checks and satisfying the original exploration's acceptance criteria.
+
+## [2026-11-08] experiment | Blind reader transfers, independent verification, and workshop integration
+
+Recorded the [Markdown-reader experiment](../../adaptations/markdown-reader/README.md): fresh distillation, independent starter/workshop applications, and unchanged baseline tooling evaluation. A subsequent coordinator browser recipe caught relative-link navigation missing from the source and frozen description; all eight grouped browser scenarios passed after a separate prompted repair. These browser checks use mocked APIs/chat, not live-provider or native-dialog interaction. Kept the candidate instruction addition separate and unvalidated on fresh targets.
+
+Integrated only the evaluated workshop reader and repair into trunk, preserving both wiki-log appends in a documentation-only cherry-pick conflict. Updated current-evidence pages without rewriting earlier log entries. No comment layer or automatic hardening system was added. Final checks/test/build passed; original attempts, repairs, prompts, patches, and result logs remain inspectable.

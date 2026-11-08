@@ -52,6 +52,11 @@ is included with its resulting patch and evaluation evidence. It exercises the m
 but is not an independent transfer or a completed visual/live-chat evaluation. Archived
 worktree paths refer to the author's machine; prepare a new run to reproduce the trial.
 
+A second [Markdown-reader exploration](markdown-reader/README.md) records a fresh distillation,
+blind starter/workshop applications, independent behavioral verification, and a prompted repair.
+It includes a [portable verification recipe](markdown-reader/verification-recipe.md) and preserves
+the initial failed navigation acceptance rather than folding its fix into the first attempt.
+
 ## Produce the next adaptation
 
 In workshop Pi, use `/skill:adapt` (after `/reload`, or start a fresh Pi). It provides the

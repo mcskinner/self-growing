@@ -1,6 +1,6 @@
 # Adaptations and capability exchange
 
-Status: file-based exploration implemented; transfer quality not established.
+Status: file-based exploration implemented; initial blind reader transfers and a prompted repair recorded, with limited acceptance evidence.
 
 ## The exchangeable unit
 
@@ -21,6 +21,8 @@ The biological analogy is horizontal gene transfer, not a literal architectural 
 The [lab](../../adaptations/README.md) captures source diffs, snapshots application inputs, prepares target worktrees, records application patches and commit links, and runs automated checks. The first example is [left chat](../../adaptations/left-chat/adaptation.md).
 
 Its [starter smoke trial](../../adaptations/left-chat/applications/starter-smoke-01/feedback.md) passed check/test/build but did not test visual or live-chat acceptance. The same agent authored the framework and performed the transfer with source knowledge. It demonstrates mechanics, not generalization or instruction sufficiency.
+
+A later [Markdown-reader experiment](../../adaptations/markdown-reader/README.md) used fresh distiller/applier sessions on starter and workshop targets with the skill/tooling unchanged. Both passed baseline evaluation; independent workshop browser checks found missing relative-link navigation, which a separate prompted repair fixed. The browser fixture mocks APIs/chat, so this is not live-provider or native-dialog evidence. A candidate instruction improvement remains untested on a fresh target.
 
 ## Questions
 

@@ -1,0 +1,8 @@
+PASS open file beside existing chat; readable and inert Markdown
+PASS settings menu remains usable beside reader
+PASS desktop resize and independent overflow
+PASS relative Markdown link opens the next document without leaving chat
+PASS reader survives reload, cancel, errors and retry
+PASS mocked send, response rendering, steer, stop, and post-work refresh
+PASS narrow viewport preserves reading, chat, and controls without horizontal overflow
+PASS no page JavaScript errors
