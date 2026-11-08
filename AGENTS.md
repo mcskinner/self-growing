@@ -9,6 +9,6 @@ Work directly in this repository. Keep changes small and preserve a working chat
 - Frontend edits appear through Vite HMR. Python edits reload after the current agent turn ends.
 - `make check`, `make test`, `make build` validate changes.
 - Pi owns the saved session under `.local/sessions/`. Do not edit/delete it while running.
-- This is intentionally one local workspace and one chat, not a multi-user service.
+- This is one local workspace with saved chats and one active run, not a multi-user service.
 - Do not add roadmaps, authentication, dashboards, settings panels, or abstractions unless asked.
 - Never put provider credentials in the frontend. Use the installed Pi CLI and its existing login.

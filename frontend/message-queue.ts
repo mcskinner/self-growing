@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { deliverMessage, restoreOutbox, type OutboundMessage } from './delivery';
+import { chatKey } from './chat-storage';
 
-export function useMessageQueue(connected: boolean) {
-  const [queue, setQueue] = useState(() => restoreOutbox(sessionStorage.getItem('message-queue')));
+export function useMessageQueue(connected: boolean, sessionId: string | null) {
+  const queueKey = chatKey(sessionId, 'message-queue');
+  const pauseKey = chatKey(sessionId, 'message-queue-paused');
+  const [queue, setQueue] = useState(() => restoreOutbox(sessionStorage.getItem(queueKey)));
   const [paused, setPausedState] = useState(() =>
-    sessionStorage.getItem('message-queue-paused') === 'true' || queue.some(item => item.status === 'uncertain'));
+    sessionStorage.getItem(pauseKey) === 'true' || queue.some(item => item.status === 'uncertain'));
   const [error, setError] = useState('');
   const current = useRef({ queue, paused, connected });
   current.current = { queue, paused, connected };
@@ -13,12 +16,12 @@ export function useMessageQueue(connected: boolean) {
 
   function save(items: OutboundMessage[]) {
     // Persist synchronously, including the in-flight state, before starting network I/O.
-    sessionStorage.setItem('message-queue', JSON.stringify(items));
+    sessionStorage.setItem(queueKey, JSON.stringify(items));
     current.current.queue = items;
     setQueue(items);
   }
   function pause(value: boolean) {
-    sessionStorage.setItem('message-queue-paused', String(value));
+    sessionStorage.setItem(pauseKey, String(value));
     current.current.paused = value;
     setPausedState(value);
   }
@@ -34,7 +37,7 @@ export function useMessageQueue(connected: boolean) {
           if (disposed || current.current.paused || current.current.queue[0]?.id !== message.id) return false;
           save(current.current.queue.map(item => item.id === message.id ? { ...item, status: 'sending' } : item));
           return true;
-        });
+        }, fetch, sessionId);
         if (result === 'waiting') {
           save(current.current.queue.map(item => item.id === message.id ? { ...item, status: 'pending' } : item));
           return false;

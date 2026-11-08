@@ -16,11 +16,12 @@ export async function deliverMessage(
   text: string,
   canSend: () => boolean,
   fetcher: typeof fetch = fetch,
+  sessionId?: string | null,
 ): Promise<'sent' | 'waiting'> {
   if (!canSend()) return 'waiting';
   const response = await fetcher('/api/chat', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(20000),
-    body: JSON.stringify({ message: text }),
+    body: JSON.stringify({ message: text, ...(sessionId ? { sessionId } : {}) }),
   });
   if (response.status === 409 || (response.status === 503 && response.headers.has('Retry-After'))) return 'waiting';
   if (!response.ok) throw new Error((await response.json()).detail || 'Could not send message');

@@ -10,6 +10,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
+from backend.history import saved_sessions, session_file, title
 from backend.pi import connect, select_session
 
 
@@ -239,6 +240,7 @@ async def local_only(request: Request, call_next):
 
 class Prompt(BaseModel):
     message: str = Field(min_length=1, max_length=100_000)
+    sessionId: str | None = None
 
 
 @app.get("/api/state")
@@ -248,6 +250,8 @@ async def state():
 
 @app.post("/api/chat", status_code=202)
 async def prompt(body: Prompt):
+    if body.sessionId is not None and body.sessionId != chat.session_id:
+        raise HTTPException(412, "The selected chat changed. Reload before sending again.")
     if not body.message.strip():
         raise HTTPException(422, "Message must not be blank")
     if chat.reloading:
@@ -272,7 +276,10 @@ async def prompt(body: Prompt):
 
 
 @app.post("/api/session/new")
-async def new_session():
+async def new_session(request: Request):
+    expected = request.headers.get("x-session-id")
+    if expected and expected != chat.session_id:
+        raise HTTPException(412, "The selected chat changed. Reload before starting a new chat.")
     if chat.busy:
         raise HTTPException(409, "Finish or stop the current run before starting a new chat")
     if chat.reloading:
@@ -308,6 +315,69 @@ async def new_session():
     return chat.snapshot()
 
 
+@app.get("/api/sessions")
+async def sessions():
+    records = [
+        {key: value for key, value in record.items() if key != "path"}
+        for record in saved_sessions()
+    ]
+    if chat.session_id and not any(record["id"] == chat.session_id for record in records):
+        records.insert(0, {"id": chat.session_id, "title": title(chat.messages), "updatedAt": None})
+    return {"sessions": records, "currentSessionId": chat.session_id}
+
+
+class SwitchSession(BaseModel):
+    sessionId: str = Field(min_length=1, max_length=128, pattern=r"^[a-zA-Z0-9][a-zA-Z0-9._-]*$")
+    expectedSessionId: str | None = None
+
+
+@app.post("/api/session/switch")
+async def switch_session(body: SwitchSession):
+    if body.expectedSessionId is not None and body.expectedSessionId != chat.session_id:
+        raise HTTPException(412, "The selected chat changed. Reload before switching again.")
+    if chat.busy:
+        raise HTTPException(409, "Finish or stop the current run before switching chats")
+    if chat.reloading:
+        raise HTTPException(503, "Backend is reloading", headers={"Retry-After": "1"})
+    if body.sessionId == chat.session_id:
+        return chat.snapshot()
+    path = session_file(body.sessionId)
+    if path is None:
+        raise HTTPException(404, "Chat not found in this workspace")
+    chat.busy = True
+    chat.activity = "Opening chat"
+    chat.revision += 1
+    try:
+        async with connect() as pi:
+            result = await pi.request("switch_session", sessionPath=str(path))
+            if result.get("cancelled"):
+                raise HTTPException(409, "Pi cancelled the session switch")
+            messages = (await pi.request("get_messages"))["messages"]
+            state = await pi.request("get_state")
+            if state.get("sessionId") != body.sessionId:
+                raise RuntimeError("Pi opened a different session")
+            context = None
+            try:
+                context = (await pi.request("get_session_stats")).get("contextUsage")
+            except Exception:
+                pass
+            select_session(body.sessionId)
+            chat.messages = messages
+            chat.session_id = body.sessionId
+            chat.context = context
+            chat.steering = []
+            chat.error = None
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(502, str(exc)) from exc
+    finally:
+        chat.busy = False
+        chat.activity = ""
+        chat.revision += 1
+    return chat.snapshot()
+
+
 @app.post("/api/prepare-reload")
 async def prepare_reload():
     if chat.busy:
@@ -317,7 +387,10 @@ async def prepare_reload():
 
 
 @app.post("/api/stop")
-async def stop():
+async def stop(request: Request):
+    expected = request.headers.get("x-session-id")
+    if expected and expected != chat.session_id:
+        raise HTTPException(412, "The selected chat changed. Reload before stopping a run.")
     cleared = {"steering": [], "followUp": []}
     if chat.pi and chat.accepting:
         cleared = await chat.command("clear_queue")
