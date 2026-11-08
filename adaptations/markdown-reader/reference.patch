@@ -1,0 +1,1065 @@
+diff --git a/backend/app.py b/backend/app.py
+index a6058a8..d1004fe 100644
+--- a/backend/app.py
++++ b/backend/app.py
+@@ -10,6 +10,7 @@ from fastapi.responses import StreamingResponse
+ from pydantic import BaseModel, Field
+ from starlette.middleware.trustedhost import TrustedHostMiddleware
+ 
++from backend.documents import router as documents_router
+ from backend.history import saved_sessions, session_file, title
+ from backend.pi import connect, select_session
+ 
+@@ -223,6 +224,7 @@ async def lifespan(app):
+ 
+ 
+ app = FastAPI(lifespan=lifespan)
++app.include_router(documents_router)
+ app.add_middleware(TrustedHostMiddleware, allowed_hosts=["localhost", "127.0.0.1", "testserver"])
+ 
+ 
+diff --git a/backend/documents.py b/backend/documents.py
+new file mode 100644
+index 0000000..1a9cd0b
+--- /dev/null
++++ b/backend/documents.py
+@@ -0,0 +1,237 @@
++"""Open original Markdown files and keep review annotations inside them."""
++
++import asyncio
++import json
++import os
++import re
++import sys
++import tempfile
++from pathlib import Path
++from uuid import uuid4
++
++from fastapi import APIRouter, HTTPException
++from pydantic import BaseModel, Field, ValidationError
++
++router = APIRouter(prefix="/api/documents")
++ROOT = Path(__file__).resolve().parents[1]
++EXCLUDED = {"node_modules", "dist", "__pycache__"}
++MARKER = "<!-- markdown-review:v1\n"
++REVIEW_BLOCK = re.compile(r"<!-- markdown-review:v1\r?\n(.*?)\r?\n-->\s*\Z", re.DOTALL)
++
++
++class TextAnchor(BaseModel):
++    start: int = Field(ge=0)
++    end: int = Field(ge=0)
++    prefix: str = Field(default="", max_length=48)
++    suffix: str = Field(default="", max_length=48)
++
++
++class Comment(BaseModel):
++    text: str = Field(min_length=1, max_length=20_000)
++    quote: str = Field(default="", max_length=10_000)
++    anchor: TextAnchor | None = None
++
++
++class SavedComment(Comment):
++    id: str = Field(min_length=1, max_length=128)
++    resolved: bool = False
++
++
++def document_path(path: str) -> Path:
++    supplied = Path(path)
++    target = (ROOT / supplied).resolve()
++    if not supplied.is_absolute() and (
++        any(part.startswith(".") or part in EXCLUDED for part in supplied.parts)
++        or not target.is_relative_to(ROOT.resolve())
++        or any(
++            part.startswith(".") or part in EXCLUDED
++            for part in target.relative_to(ROOT.resolve()).parts
++        )
++    ):
++        raise HTTPException(404, "Markdown document not found")
++    if target.suffix.lower() not in {".md", ".markdown"} or not target.is_file():
++        raise HTTPException(404, "Markdown document not found")
++    if target.stat().st_size > 2_000_000:
++        raise HTTPException(413, "Document is too large (maximum 2 MB)")
++    return target
++
++
++def legacy_comments(target: Path):
++    """Read old reviews as a fallback; never migrate or write merely by opening a file."""
++    file = ROOT / ".local" / "reviews.json"
++    if not target.is_relative_to(ROOT.resolve()) or not file.exists():
++        return []
++    reviews = json.loads(file.read_text())
++    return reviews.get(target.relative_to(ROOT.resolve()).as_posix(), [])
++
++
++def read_document(target: Path):
++    original = target.read_bytes()
++    try:
++        source = original.decode("utf-8")
++    except UnicodeDecodeError:
++        raise HTTPException(422, "Document is not UTF-8 text") from None
++    match = REVIEW_BLOCK.search(source)
++    if match:
++        try:
++            data = json.loads(match[1])
++            comments = [SavedComment.model_validate(item).model_dump() for item in data["comments"]]
++        except (ValueError, KeyError, TypeError, ValidationError):
++            raise HTTPException(
++                422, "Review metadata is invalid; the file was not changed"
++            ) from None
++        return original, source[: match.start()], comments, match.start(), "embedded"
++    if "<!-- markdown-review:" in source:
++        raise HTTPException(
++            422, "Review metadata is unsupported or misplaced; the file was not changed"
++        )
++    comments = legacy_comments(target)
++    return original, source, comments, None, "legacy" if comments else "embedded"
++
++
++def write_comments(target: Path, original: bytes, source: str, comments: list, start: int | None):
++    # Escape HTML-comment delimiters while keeping the payload valid, readable JSON.
++    payload = json.dumps({"comments": comments}, ensure_ascii=False, indent=2)
++    payload = payload.replace("-", "\\u002d").replace("<", "\\u003c").replace(">", "\\u003e")
++    newline = "\r\n" if "\r\n" in source else "\n"
++    separator = "" if start is not None else (newline if source.endswith("\n") else newline * 2)
++    block = (MARKER + payload + "\n-->\n").replace("\n", newline)
++    updated = (source + separator + block).encode("utf-8")
++    if len(updated) > 2_000_000:
++        raise HTTPException(413, "Document with annotations exceeds 2 MB")
++    temporary = None
++    try:
++        # Respect read-only documents, even when their parent directory is writable.
++        if not os.access(target, os.W_OK):
++            raise HTTPException(403, "Document is read-only")
++        with tempfile.NamedTemporaryFile(
++            dir=target.parent, prefix=f".{target.name}.", delete=False
++        ) as file:
++            temporary = Path(file.name)
++            file.write(updated)
++        temporary.chmod(target.stat().st_mode & 0o777)
++        if target.read_bytes() != original:
++            raise HTTPException(409, "Document changed while saving; retry your comment")
++        temporary.replace(target)
++    except PermissionError:
++        raise HTTPException(403, "Cannot write annotations to this document") from None
++    finally:
++        if temporary and temporary.exists():
++            temporary.unlink()
++
++
++def snapshot(path: str, target: Path):
++    _, source, comments, _, storage = read_document(target)
++    return {"path": path, "content": source, "comments": comments, "storage": storage}
++
++
++async def choose_markdown_file():
++    if sys.platform != "darwin":
++        raise HTTPException(501, "The native file chooser currently supports macOS only")
++    script = """try
++        set picked to choose file with prompt "Open Markdown" of type {"md", "markdown"}
++        return POSIX path of picked
++    on error number -128
++        return ""
++    end try"""
++    process = await asyncio.create_subprocess_exec(
++        "/usr/bin/osascript",
++        "-e",
++        script,
++        stdout=asyncio.subprocess.PIPE,
++        stderr=asyncio.subprocess.PIPE,
++    )
++    try:
++        async with asyncio.timeout(300):
++            stdout, stderr = await process.communicate()
++    finally:
++        if process.returncode is None:
++            process.kill()
++            await process.wait()
++    if process.returncode:
++        raise HTTPException(500, f"Could not open file chooser: {stderr.decode().strip()}")
++    return stdout.decode().rstrip("\r\n")
++
++
++@router.post("/pick")
++async def pick_document():
++    selected = await choose_markdown_file()
++    if not selected:
++        return {"path": None}
++    target = document_path(selected)
++    # Selection and opening are read-only. The original is changed only by saving annotations.
++    read_document(target)
++    relative = target.relative_to(ROOT.resolve()) if target.is_relative_to(ROOT.resolve()) else None
++    path = (
++        relative.as_posix()
++        if relative and not any(part.startswith(".") or part in EXCLUDED for part in relative.parts)
++        else str(target)
++    )
++    return {"path": path}
++
++
++@router.get("")
++async def list_documents():
++    paths = []
++    for directory, folders, files in os.walk(ROOT, followlinks=False):
++        folders[:] = sorted(
++            name for name in folders if not name.startswith(".") and name not in EXCLUDED
++        )
++        for name in files:
++            path = Path(directory, name).relative_to(ROOT).as_posix()
++            if name.lower().endswith((".md", ".markdown")) and not name.startswith("."):
++                try:
++                    document_path(path)
++                    paths.append(path)
++                except HTTPException:
++                    pass
++    return sorted(paths)
++
++
++@router.get("/content")
++async def get_document(path: str):
++    return snapshot(path, document_path(path))
++
++
++@router.post("/comments", status_code=201)
++async def add_comment(path: str, body: Comment):
++    target = document_path(path)
++    if not body.text.strip():
++        raise HTTPException(422, "Comment must not be blank")
++    if (
++        body.anchor
++        and body.anchor.end - body.anchor.start != len(body.quote.encode("utf-16-le")) // 2
++    ):
++        raise HTTPException(422, "Anchor length must match the selected text")
++    original, source, comments, start, _ = read_document(target)
++    comment = {
++        "id": uuid4().hex,
++        "text": body.text.strip(),
++        "quote": body.quote,
++        "anchor": body.anchor.model_dump() if body.anchor else None,
++        "resolved": False,
++    }
++    comments.append(comment)
++    write_comments(target, original, source, comments, start)
++    return comment
++
++
++@router.patch("/comments/{comment_id}")
++async def toggle_comment(comment_id: str, path: str):
++    target = document_path(path)
++    original, source, comments, start, _ = read_document(target)
++    for comment in comments:
++        if comment["id"] == comment_id:
++            comment["resolved"] = not comment["resolved"]
++            write_comments(target, original, source, comments, start)
++            return comment
++    raise HTTPException(404, "Comment not found")
++
++
++@router.post("/migrate")
++async def migrate_comments(path: str):
++    target = document_path(path)
++    original, source, comments, start, storage = read_document(target)
++    if storage == "legacy":
++        write_comments(target, original, source, comments, start)
++    return snapshot(path, target)
+diff --git a/frontend/annotations.ts b/frontend/annotations.ts
+new file mode 100644
+index 0000000..f62c92d
+--- /dev/null
++++ b/frontend/annotations.ts
+@@ -0,0 +1,62 @@
++export interface Anchor { start: number; end: number; prefix: string; suffix: string }
++export interface Annotation { id: string; quote: string; anchor?: Anchor | null }
++
++/** Never silently attach an ambiguous repeated excerpt to the wrong passage. */
++export function locate(text: string, annotation: Annotation): number | null {
++  const { quote, anchor } = annotation;
++  if (!quote) return null;
++  const matches: number[] = [];
++  let from = 0;
++  while (from <= text.length - quote.length) {
++    const at = text.indexOf(quote, from);
++    if (at < 0) break;
++    matches.push(at); from = at + 1;
++  }
++  if (matches.length === 1) return matches[0];
++  if (!anchor) return null;
++  const contextual = matches.filter(at =>
++    text.slice(Math.max(0, at - anchor.prefix.length), at) === anchor.prefix &&
++    text.slice(at + quote.length, at + quote.length + anchor.suffix.length) === anchor.suffix);
++  return contextual.length === 1 ? contextual[0] : null;
++}
++
++export function annotate(html: string, annotations: Annotation[]) {
++  const container = document.createElement('div');
++  container.innerHTML = html;
++  const text = container.textContent || '';
++  const ranges = annotations.flatMap(annotation => {
++    const start = locate(text, annotation);
++    return start === null ? [] : [{ id: annotation.id, start, end: start + annotation.quote.length }];
++  });
++  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
++  const nodes: Text[] = [];
++  while (walker.nextNode()) nodes.push(walker.currentNode as Text);
++  let offset = 0;
++  for (const node of nodes) {
++    const value = node.data;
++    const end = offset + value.length;
++    const intersecting = ranges.filter(range => range.start < end && range.end > offset);
++    if (intersecting.length) {
++      const boundaries = [...new Set([0, value.length, ...intersecting.flatMap(range =>
++        [Math.max(0, range.start - offset), Math.min(value.length, range.end - offset)])])].sort((a, b) => a - b);
++      const fragment = document.createDocumentFragment();
++      for (let i = 0; i < boundaries.length - 1; i++) {
++        const start = boundaries[i];
++        const segment = value.slice(start, boundaries[i + 1]);
++        const ids = intersecting.filter(range => range.start <= offset + start && range.end > offset + start).map(range => range.id);
++        if (ids.length) {
++          const mark = document.createElement('mark');
++          mark.dataset.comments = ids.join(' ');
++          mark.tabIndex = 0;
++          mark.setAttribute('role', 'button');
++          mark.setAttribute('aria-label', `Show ${ids.length > 1 ? 'comments' : 'comment'} on: ${segment}`);
++          mark.textContent = segment;
++          fragment.append(mark);
++        } else fragment.append(document.createTextNode(segment));
++      }
++      node.replaceWith(fragment);
++    }
++    offset = end;
++  }
++  return { html: container.innerHTML, attached: new Set(ranges.map(range => range.id)) };
++}
+diff --git a/frontend/documents.tsx b/frontend/documents.tsx
+new file mode 100644
+index 0000000..5fae592
+--- /dev/null
++++ b/frontend/documents.tsx
+@@ -0,0 +1,250 @@
++import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
++import { annotate, type Anchor } from './annotations';
++import DOMPurify from 'dompurify';
++import { marked } from 'marked';
++
++interface Comment { id: string; text: string; quote: string; resolved: boolean; anchor?: Anchor | null }
++interface Document { path: string; content: string; comments: Comment[]; storage: 'embedded' | 'legacy' }
++interface SelectionAnchor { quote: string; anchor: Anchor }
++interface Candidate extends SelectionAnchor { x: number; y: number }
++
++async function request<T>(url: string, init?: RequestInit): Promise<T> {
++  const response = await fetch(url, init);
++  if (!response.ok) throw new Error((await response.json()).detail || 'Request failed');
++  return response.json();
++}
++
++export function DocumentPicker({ onOpen }: { onOpen: (path: string) => void }) {
++  const [opening, setOpening] = useState(false);
++  const [error, setError] = useState('');
++  async function open() {
++    setOpening(true); setError('');
++    try {
++      const result = await request<{ path: string | null }>('/api/documents/pick', { method: 'POST' });
++      if (result.path) onOpen(result.path);
++    } catch (err) { setError(String(err)); }
++    finally { setOpening(false); }
++  }
++  return <div className="document-picker">
++    <button className="icon-button" disabled={opening} aria-label="Open document" title={opening ? 'Choosing document…' : 'Open document'}
++      aria-busy={opening} onClick={() => void open()}>
++      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"
++        strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
++        <path d="M20 20H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2Z" />
++      </svg>
++    </button>
++    {error && <span className="error" role="alert">{error}</span>}
++  </div>;
++}
++
++export function DocumentView({ path, busy, onClose, onReview }: {
++  path: string; busy: boolean; onClose: () => void; onReview: (text: string) => void;
++}) {
++  const [doc, setDoc] = useState<Document | null>(null);
++  const [error, setError] = useState('');
++  const [loading, setLoading] = useState(true);
++  const [loadAttempt, setLoadAttempt] = useState(0);
++  const [candidate, setCandidate] = useState<Candidate | null>(null);
++  const [draft, setDraft] = useState<SelectionAnchor | null>(null);
++  const [text, setText] = useState('');
++  const [active, setActive] = useState('');
++  const [showResolved, setShowResolved] = useState(false);
++  const [saving, setSaving] = useState(false);
++  const [updating, setUpdating] = useState('');
++  const [layout, setLayout] = useState<{ tops: Record<string, number>; height: number }>({ tops: {}, height: 0 });
++  const article = useRef<HTMLElement>(null);
++  const canvas = useRef<HTMLDivElement>(null);
++  const rail = useRef<HTMLElement>(null);
++  const commentInput = useRef<HTMLTextAreaElement>(null);
++  const url = `/api/documents/content?path=${encodeURIComponent(path)}`;
++  useEffect(() => {
++    const controller = new AbortController();
++    setLoading(true); setError('');
++    request<Document>(url, { signal: controller.signal }).then(data => {
++      if (!controller.signal.aborted) setDoc(data);
++    }).catch(err => {
++      if (controller.signal.aborted) return;
++      const message = err instanceof Error ? err.message : String(err);
++      setError(message === 'Not Found' ? 'The document service is not ready. Please retry.' : message);
++    }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
++    return () => controller.abort();
++  }, [url, busy, loadAttempt]);
++  const html = useMemo(() => DOMPurify.sanitize(marked.parse(doc?.content || '', { async: false }), {
++    FORBID_TAGS: ['img', 'style', 'input', 'mark'], FORBID_ATTR: ['style', 'data-comments', 'data-thread'],
++  }), [doc?.content]);
++  const openComments = useMemo(() => doc?.comments.filter(comment => !comment.resolved) || [], [doc]);
++  const visible = useMemo(() => doc?.comments.filter(comment => showResolved || !comment.resolved) || [], [doc, showResolved]);
++  const annotated = useMemo(() => annotate(html, [
++    ...visible, ...(draft ? [{ ...draft, id: 'draft' }] : []),
++  ]), [html, visible, draft]);
++
++  // Capture offsets in the rendered text, plus surrounding context to reattach after edits.
++  useEffect(() => {
++    function capture() {
++      const selection = window.getSelection();
++      const root = article.current;
++      if (!selection || !root || selection.isCollapsed || !selection.rangeCount ||
++        !root.contains(selection.anchorNode) || !root.contains(selection.focusNode)) {
++        setCandidate(null); return;
++      }
++      const range = selection.getRangeAt(0);
++      const quote = range.toString();
++      if (!quote.trim() || quote.length > 10000) { setCandidate(null); return; }
++      const before = range.cloneRange();
++      before.selectNodeContents(root);
++      before.setEnd(range.startContainer, range.startOffset);
++      const start = before.toString().length;
++      const end = start + quote.length;
++      const full = root.textContent || '';
++      const rect = range.getBoundingClientRect();
++      setCandidate({ quote, anchor: { start, end, prefix: full.slice(Math.max(0, start - 48), start), suffix: full.slice(end, end + 48) },
++        x: Math.max(8, Math.min(rect.left, window.innerWidth - 170)), y: Math.max(8, Math.min(rect.bottom + 8, window.innerHeight - 48)) });
++    }
++    document.addEventListener('selectionchange', capture);
++    return () => document.removeEventListener('selectionchange', capture);
++  }, []);
++
++  // Cards follow their passages vertically, stacking rather than overlapping.
++  useLayoutEffect(() => {
++    if (!canvas.current || !article.current || !rail.current) return;
++    function measure() {
++      const root = canvas.current!;
++      const base = root.getBoundingClientRect().top;
++      const marks = Array.from(article.current!.querySelectorAll<HTMLElement>('mark[data-comments]'));
++      const cards = Array.from(rail.current!.querySelectorAll<HTMLElement>('[data-thread]'));
++      const entries = cards.map(card => {
++        const id = card.dataset.thread!;
++        const mark = marks.find(item => item.dataset.comments?.split(' ').includes(id));
++        return { id, card, target: mark ? mark.getBoundingClientRect().top - base : article.current!.offsetHeight + 24 };
++      }).sort((a, b) => a.target - b.target);
++      const tops: Record<string, number> = {};
++      let bottom = 0;
++      for (const entry of entries) {
++        const top = Math.max(bottom, entry.target);
++        tops[entry.id] = top;
++        bottom = top + entry.card.offsetHeight + 12;
++      }
++      const next = { tops, height: bottom };
++      setLayout(current => JSON.stringify(current) === JSON.stringify(next) ? current : next);
++    }
++    measure();
++    const observer = new ResizeObserver(measure);
++    observer.observe(article.current);
++    rail.current.querySelectorAll('[data-thread]').forEach(card => observer.observe(card));
++    return () => observer.disconnect();
++  }, [annotated, visible, draft]);
++
++  useEffect(() => {
++    article.current?.querySelectorAll<HTMLElement>('mark[data-comments]').forEach(mark => {
++      const selected = mark.dataset.comments?.split(' ').includes(active) || false;
++      mark.classList.toggle('active-annotation', selected);
++      mark.setAttribute('aria-pressed', String(selected));
++    });
++  }, [active, annotated]);
++
++  useEffect(() => { if (draft) commentInput.current?.focus(); }, [draft]);
++
++  async function addComment() {
++    if (!text.trim() || !draft || saving) return;
++    setSaving(true); setError('');
++    try {
++      const comment = await request<Comment>(`/api/documents/comments?path=${encodeURIComponent(path)}`, {
++        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, ...draft }),
++      });
++      setDoc(current => current && { ...current, storage: 'embedded', comments: [...current.comments, comment] });
++      setText(''); setDraft(null); setActive(comment.id);
++    } catch (err) { setError(String(err)); }
++    finally { setSaving(false); }
++  }
++
++  async function toggle(comment: Comment) {
++    setUpdating(comment.id);
++    try {
++      const updated = await request<Comment>(`/api/documents/comments/${comment.id}?path=${encodeURIComponent(path)}`, { method: 'PATCH' });
++      setDoc(current => current && { ...current, storage: 'embedded', comments: current.comments.map(item => item.id === updated.id ? updated : item) });
++      setError('');
++    } catch (err) { setError(String(err)); }
++    finally { setUpdating(''); }
++  }
++
++  function activate(id: string, fromCard = false) {
++    setActive(id);
++    const target = fromCard
++      ? Array.from(article.current?.querySelectorAll<HTMLElement>('mark[data-comments]') || []).find(mark => mark.dataset.comments?.split(' ').includes(id))
++      : Array.from(rail.current?.querySelectorAll<HTMLElement>('[data-thread]') || []).find(card => card.dataset.thread === id);
++    target?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
++  }
++  function activateMark(target: EventTarget) {
++    const mark = (target as HTMLElement).closest<HTMLElement>('mark[data-comments]');
++    if (!mark) return;
++    const ids = mark.dataset.comments!.split(' ').filter(id => id !== 'draft');
++    if (ids.length) activate(ids[(ids.indexOf(active) + 1) % ids.length]);
++  }
++
++  return <section className="document-panel" aria-label="Document review">
++    <div className="document-toolbar"><div><span className="eyebrow">DOCUMENT REVIEW</span><strong title={path}>{path}</strong></div>
++      <button className="icon-button" onClick={onClose} aria-label="Close document" title="Close document">
++        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"
++          strokeLinecap="round" aria-hidden="true" focusable="false"><path d="m6 6 12 12M18 6 6 18" /></svg>
++      </button></div>
++    <div className="annotation-toolbar">
++      <span title="Saving or resolving a comment updates an HTML metadata block in the original Markdown file.">Select a passage to comment · {openComments.length} open · {doc?.storage === 'legacy' ? 'Earlier comments not yet embedded' : 'Saved in Markdown'}</span>
++      {doc?.storage === 'legacy' && <button className="quiet-button" disabled={saving} onClick={async () => {
++        setSaving(true);
++        try { setDoc(await request<Document>(`/api/documents/migrate?path=${encodeURIComponent(path)}`, { method: 'POST' })); setError(''); }
++        catch (err) { setError(String(err)); }
++        finally { setSaving(false); }
++      }}>Move existing comments into file</button>}
++      <label><input type="checkbox" checked={showResolved} onChange={event => setShowResolved(event.target.checked)} /> Show resolved</label>
++      <button className="quiet-button" disabled={!openComments.length} onClick={() => onReview(
++        `Please revise ${path} based on these annotations. Read the current document first; some passages may have changed. Preserve the markdown-review HTML metadata block and comment IDs.\n\n` +
++        openComments.map((comment, index) => `${index + 1}. ${comment.quote ? `On this passage:\n> ${comment.quote.replace(/\n/g, '\n> ')}\n` : ''}${comment.text}`).join('\n\n')
++      )}>Send review to chat ↗</button>
++    </div>
++    <div className="document-scroll" aria-busy={loading} onScroll={() => setCandidate(null)}>
++      {error && <div className="error" role="alert">{error} <button className="quiet-button" disabled={loading}
++        onClick={() => setLoadAttempt(attempt => attempt + 1)}>Retry</button></div>}
++      {!doc ? loading ? <p role="status">Loading document…</p> : null : <div className="annotation-canvas" ref={canvas}>
++        <article className="markdown-document" ref={article} dangerouslySetInnerHTML={{ __html: annotated.html }}
++          onClick={event => {
++            if (window.getSelection()?.isCollapsed && (event.target as HTMLElement).closest('mark[data-comments]')) {
++              event.preventDefault(); activateMark(event.target);
++            }
++          }}
++          onKeyDown={event => {
++            if ((event.key === 'Enter' || event.key === ' ') && (event.target as HTMLElement).matches('mark[data-comments]')) {
++              event.preventDefault(); activateMark(event.target);
++            }
++          }} />
++        <aside className="annotation-rail" ref={rail} aria-label="Annotations" style={{ minHeight: layout.height }}>
++          {!visible.length && !draft && <p className="annotation-empty">Highlight text in the document to start a conversation about it.</p>}
++          {visible.map(comment => <div tabIndex={0} role="group" aria-label="Comment on passage"
++            data-thread={comment.id} style={{ top: layout.tops[comment.id] || 0 }}
++            className={`annotation-card ${active === comment.id ? 'active' : ''} ${comment.resolved ? 'resolved' : ''}`}
++            key={comment.id} onClick={() => activate(comment.id, true)}
++            onKeyDown={event => { if (event.key === 'Enter' && event.target === event.currentTarget) activate(comment.id, true); }}>
++            <div className="annotation-label">You {comment.resolved && <span>· Resolved</span>}</div>
++            {!annotated.attached.has(comment.id) && <div className="detached-note">{comment.quote ? 'Passage changed or could not be uniquely located.' : 'Earlier document-level comment.'}</div>}
++            {comment.quote && <blockquote>{comment.quote}</blockquote>}
++            <p>{comment.text}</p>
++            <button className="quiet-button" disabled={!!updating} onClick={event => { event.stopPropagation(); void toggle(comment); }}>{comment.resolved ? 'Reopen' : 'Resolve'}</button>
++          </div>)}
++          {draft && <form data-thread="draft" className="annotation-card annotation-composer" style={{ top: layout.tops.draft || 0 }}
++            onSubmit={event => { event.preventDefault(); void addComment(); }}>
++            <div className="annotation-label">New comment</div>
++            {!annotated.attached.has('draft') && <div className="detached-note">This passage changed while you were commenting.</div>}
++            <blockquote>{draft.quote}</blockquote>
++            <textarea ref={commentInput} value={text} maxLength={20000} rows={3} aria-label="Comment on selected text" placeholder="Leave a comment…" onChange={event => setText(event.target.value)} />
++            <div className="annotation-actions"><button type="button" className="quiet-button" disabled={saving} onClick={() => { setDraft(null); setText(''); }}>Cancel</button>
++              <button className="text-button" disabled={!text.trim() || saving} type="submit">{saving ? 'Saving…' : 'Comment'}</button></div>
++          </form>}
++        </aside>
++      </div>}
++    </div>
++    {candidate && !draft && <button className="selection-popover text-button" style={{ left: candidate.x, top: candidate.y }}
++      onMouseDown={event => event.preventDefault()} onClick={() => {
++        setDraft({ quote: candidate.quote, anchor: candidate.anchor }); setActive('draft'); setCandidate(null);
++        window.getSelection()?.removeAllRanges();
++      }}>+ Comment</button>}
++  </section>;
++}
+diff --git a/frontend/main.tsx b/frontend/main.tsx
+index 883fcf9..04e7213 100644
+--- a/frontend/main.tsx
++++ b/frontend/main.tsx
+@@ -1,4 +1,5 @@
+-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
++import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
++import { DocumentPicker, DocumentView } from './documents';
+ import { createRoot } from 'react-dom/client';
+ import type { Transcript, Message } from './transcript';
+ import { ChatDisplay } from './chat-display';
+@@ -15,9 +16,31 @@ interface State {
+   steering: string[]; context: ContextUsage | null; sessionId: string | null;
+ }
+ 
++interface ReviewRequest { sessionId: string | null; text: string }
++
+ function App() {
+   const [state, setState] = useState<State | null>(null);
+   const [connected, setConnected] = useState(false);
++  const [documentPath, setDocumentPath] = useState(() => sessionStorage.getItem('open-document') || '');
++  const [review, setReview] = useState<ReviewRequest | null>(null);
++  const [chatWidth, setChatWidth] = useState(() => {
++    const saved = Number(localStorage.getItem('chat-width'));
++    return Number.isFinite(saved) && saved >= 320 ? Math.min(saved, 900) : 480;
++  });
++  const [resizing, setResizing] = useState(false);
++  const workspace = useRef<HTMLDivElement>(null);
++  const drag = useRef<{ x: number; width: number } | null>(null);
++  function openDocument(path: string) {
++    if (path) sessionStorage.setItem('open-document', path);
++    else sessionStorage.removeItem('open-document');
++    setDocumentPath(path);
++  }
++  useEffect(() => { localStorage.setItem('chat-width', String(chatWidth)); }, [chatWidth]);
++  function resizeChat(width: number) {
++    const available = workspace.current?.clientWidth || window.innerWidth;
++    const reserved = window.innerWidth > 1000 ? 393 : 369;
++    setChatWidth(Math.round(Math.max(320, Math.min(width, 900, available - reserved))));
++  }
+   useEffect(() => {
+     const events = new EventSource('/api/events');
+     events.onmessage = event => {
+@@ -29,11 +52,40 @@ function App() {
+     return () => events.close();
+   }, []);
+   if (!state) return <div className="app"><p className="connecting" role="status">Connecting to your workspace…</p></div>;
+-  // Each conversation owns its draft/outbox closures, even if an old request finishes late.
+-  return <Chat key={state.sessionId || 'initial'} state={state} connected={connected} />;
++  // The document is a sibling of the keyed chat: switching chats must not remount its editor.
++  return <div className={`app ${documentPath ? 'reviewing' : ''} ${resizing ? 'resizing' : ''}`}
++    ref={workspace} style={{ '--chat-width': `${chatWidth}px` } as CSSProperties}>
++    <Chat key={state.sessionId || 'initial'} state={state} connected={connected}
++      documentPath={documentPath} onOpenDocument={openDocument} review={review} onReviewConsumed={() => setReview(null)} />
++    {documentPath && <div className="panel-resizer" role="separator" tabIndex={0}
++      aria-label="Resize chat panel" aria-orientation="vertical" aria-valuemin={320} aria-valuemax={900} aria-valuenow={chatWidth}
++      onDoubleClick={() => resizeChat(480)}
++      onPointerDown={event => {
++        if (event.button !== 0) return;
++        event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId);
++        drag.current = { x: event.clientX, width: event.currentTarget.previousElementSibling!.getBoundingClientRect().width };
++        setResizing(true);
++      }} onPointerMove={event => {
++        if (drag.current) resizeChat(drag.current.width + event.clientX - drag.current.x);
++      }} onPointerUp={event => {
++        drag.current = null; setResizing(false); event.currentTarget.releasePointerCapture(event.pointerId);
++      }} onLostPointerCapture={() => { drag.current = null; setResizing(false); }}
++      onKeyDown={event => {
++        if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
++          event.preventDefault();
++          const current = event.currentTarget.previousElementSibling!.getBoundingClientRect().width;
++          resizeChat(event.key === 'Home' ? 320 : event.key === 'End' ? 900 : current + (event.key === 'ArrowRight' ? 1 : -1) * (event.shiftKey ? 80 : 20));
++        }
++      }} />}
++    {documentPath && <DocumentView key={documentPath} path={documentPath} busy={state.busy}
++      onClose={() => openDocument('')} onReview={text => setReview({ sessionId: state.sessionId, text })} />}
++  </div>;
+ }
+ 
+-function Chat({ state, connected }: { state: State; connected: boolean }) {
++function Chat({ state, connected, documentPath, onOpenDocument, review, onReviewConsumed }: {
++  state: State; connected: boolean; documentPath: string; onOpenDocument: (path: string) => void;
++  review: ReviewRequest | null; onReviewConsumed: () => void;
++}) {
+   const draftKey = chatKey(state.sessionId, 'draft');
+   const cursorKey = chatKey(state.sessionId, 'draft-cursor');
+   const [showDetails, setShowDetails] = useState(() => localStorage.getItem('show-chat-details') === 'true');
+@@ -99,6 +151,11 @@ function Chat({ state, connected }: { state: State; connected: boolean }) {
+     }
+   }, [draft]);
+   useEffect(() => { localStorage.setItem('show-chat-details', String(showDetails)); }, [showDetails]);
++  useEffect(() => {
++    if (!review || review.sessionId !== state.sessionId) return;
++    setDraft(current => current.trim() ? `${current}\n\n${review.text}` : review.text);
++    onReviewConsumed(); input.current?.focus();
++  }, [review]);
+ 
+   function send() {
+     if (!draft.trim() || stopping || startingSession || !connected) return;
+@@ -144,7 +201,7 @@ function Chat({ state, connected }: { state: State; connected: boolean }) {
+ 
+   const visibleError = error || messages.error || composerError(state.error, state.messages, state.busy);
+ 
+-  return <div className="app">
++  return <>
+     <header>
+       <div className="header-start">
+         <button className="icon-button" onClick={() => setHistoryOpen(true)} aria-label="Chats" title="Chats"
+@@ -159,11 +216,14 @@ function Chat({ state, connected }: { state: State; connected: boolean }) {
+       <a className="brand" href="/" aria-label="Self-growing home"><span className="seed" aria-hidden="true">✳</span><span className="brand-name">self-growing</span></a>
+       <div className="header-actions">
+         <span className="connection" title="Connection to the local chat backend"><i className={connected ? 'online' : ''} />{connected ? 'Connected' : 'Reconnecting…'}</span>
++        <DocumentPicker onOpen={onOpenDocument} />
+         <ChatDisplay showDetails={showDetails} onChange={setShowDetails} />
+       </div>
+     </header>
+     <ChatHistory open={historyOpen} currentId={state.sessionId} blocked={switchingBlocked} switching={startingSession}
+       onClose={() => setHistoryOpen(false)} onSelect={id => void changeChat(id)} onNew={() => void changeChat()} />
++    <section className="chat-panel" aria-label="Pi chat">
++      {documentPath && <div className="chat-heading"><span className="seed" aria-hidden="true">✳</span> Pi <span>Your design partner</span></div>}
+     <main ref={scroller}
+       onWheelCapture={event => { if (event.deltaY < 0) follow.current = false; }}
+       onTouchMoveCapture={() => { follow.current = false; }}
+@@ -219,7 +279,8 @@ function Chat({ state, connected }: { state: State; connected: boolean }) {
+       </form>
+       <div className="footnote"><span>Pi can edit files and run commands in this workspace.</span><span>Enter to {state.busy ? 'steer' : 'send'} · Shift + Enter for a new line</span></div>
+     </footer>
+-  </div>;
++    </section>
++  </>;
+ }
+ 
+ createRoot(document.getElementById('root')!).render(<App />);
+diff --git a/frontend/style.css b/frontend/style.css
+index db27163..b03ab06 100644
+--- a/frontend/style.css
++++ b/frontend/style.css
+@@ -3,8 +3,8 @@
+ * { box-sizing: border-box; }
+ body { margin: 0; }
+ button, textarea { font: inherit; }
+-.app { height: 100dvh; display: flex; flex-direction: column; }
+-header { width: min(100% - 64px, 1100px); margin: 0 auto; padding: 12px 0 12px; flex-shrink: 0;
++.app { height: 100dvh; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
++header { grid-column: 1 / -1; grid-row: 1; width: min(100% - 64px, 1100px); margin: 0 auto; padding: 12px 0 12px; flex-shrink: 0;
+   display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center;
+   border-bottom: 1px solid #e6e7de; }
+ .brand { position: relative; justify-self: center; white-space: nowrap; text-decoration: none; color: inherit;
+@@ -73,7 +73,7 @@ button:focus-visible, a:focus-visible { outline: 2px solid #6f8859; outline-offs
+ .pending-steering { margin: 0 2px 10px; font-size: 12px; color: #78876b; }
+ .pending-steering summary { cursor: pointer; }
+ .pending-steering ul { max-height: 120px; overflow-y: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+-.connecting { margin: auto; color: #7c8870; font-size: 14px; }
++.connecting { grid-area: 1 / 1 / -1 / -1; margin: auto; color: #7c8870; font-size: 14px; }
+ .chat-history { position: fixed; inset: 0 auto 0 0; margin: 0; width: 375px; max-width: calc(100vw - 32px);
+   height: 100dvh; max-height: none; padding: 12px 20px 24px; border: 0; border-right: 1px solid #dce1d3;
+   background: #f8f7f4; color: #292e29; overflow: hidden; }
+@@ -100,6 +100,85 @@ button:focus-visible, a:focus-visible { outline: 2px solid #6f8859; outline-offs
+ .history-date { color: #858b7e; font-size: 11px; }
+ .stop-button { background: #eeeee7; color: #737b69; font-size: 16px; }
+ .stop-button:hover { background: #e1e5d8; }
++.chat-panel { grid-column: 1; grid-row: 2; min-height: 0; min-width: 0; display: flex; flex-direction: column; }
++.document-picker { position: relative; flex-shrink: 0; display: flex; align-items: center; }
++.document-picker .error { position: absolute; right: 0; top: calc(100% + 8px); z-index: 20;
++  width: max-content; max-width: min(320px, calc(100vw - 32px)); margin: 0; padding: 12px; font-size: 12px;
++  background: #fffefa; border: 1px solid #dce1d3; border-radius: 8px; }
++.app.reviewing { grid-template-columns: clamp(320px, var(--chat-width, 480px), calc(100% - 393px)) 9px minmax(0, 1fr); }
++.reviewing .document-panel { margin-right: 24px; }
++.panel-resizer { grid-column: 2; grid-row: 2; cursor: col-resize; touch-action: none; position: relative; outline-offset: -2px; }
++.panel-resizer::after { content: ''; position: absolute; top: 0; bottom: 0; left: 4px; width: 1px; background: #e0e2d8; }
++.panel-resizer:hover::after, .panel-resizer:focus-visible::after, .resizing .panel-resizer::after { width: 3px; left: 3px; background: #9cae8c; }
++.panel-resizer:focus-visible { outline: 2px solid #6f8859; }
++.resizing { cursor: col-resize; user-select: none; }
++.chat-heading { display: flex; gap: 10px; align-items: center; padding: 16px 24px; font-size: 14px; border-bottom: 1px solid #e6e7de; }
++.chat-heading .seed { position: static; transform: none; font-size: 22px; }
++.chat-heading > span:last-child { color: #929889; margin-left: auto; font-size: 11px; }
++.reviewing .conversation { padding: 24px 20px; }
++.reviewing footer { width: calc(100% - 32px); padding-bottom: 16px; }
++.reviewing .footnote span:last-child { display: none; }
++.reviewing .welcome { padding-top: 40px; }
++.reviewing .welcome h1 { font-size: 30px; }
++.document-panel { grid-column: 3; grid-row: 2; min-width: 0; display: flex; flex-direction: column; }
++.document-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 28px; border-bottom: 1px solid #e6e7de; }
++.document-toolbar > div { min-width: 0; }
++.document-toolbar .eyebrow { display: block; font-size: 10px; margin-bottom: 6px; }
++.document-toolbar strong { display: block; font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
++.document-scroll { overflow: auto; flex: 1; min-height: 0; padding: 28px 24px 60px; }
++.markdown-document { min-width: 0; margin: 0; padding: 0 12px; font-size: 15px; line-height: 1.85; overflow-wrap: anywhere; }
++.markdown-document h1 { font-size: 36px; line-height: 1.25; }
++.markdown-document h2, .markdown-document h3 { line-height: 1.4; margin-top: 32px; letter-spacing: -.025em; }
++.markdown-document h2 { font-size: 24px; }
++.markdown-document h3 { font-size: 19px; }
++.markdown-document a { color: #516f42; text-underline-offset: 3px; }
++.markdown-document pre { overflow-x: auto; padding: 20px; background: #eeeee7; border-radius: 8px; line-height: 1.6; }
++.markdown-document code { font-size: .86em; background: #eeeee7; padding: 2px 4px; border-radius: 3px; }
++.markdown-document pre code { padding: 0; }
++.markdown-document table { display: block; border-collapse: collapse; overflow-x: auto; }
++.markdown-document th, .markdown-document td { border: 1px solid #dcdfd2; padding: 8px 12px; }
++.markdown-document blockquote, .annotation-card blockquote { margin: 12px 0; padding-left: 16px; border-left: 2px solid #abb99e; color: #747e6c; white-space: pre-wrap; }
++.markdown-document hr { border: 0; border-top: 1px solid #dcdfd2; margin: 32px 0; }
++.text-button { width: auto; height: auto; font-size: 12px; padding: 8px 12px; border-radius: 7px; }
++.annotation-toolbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding: 12px 24px; border-bottom: 1px solid #e6e7de; font-size: 11px; color: #858b7e; }
++.annotation-toolbar label { display: flex; gap: 5px; align-items: center; margin-left: auto; }
++.annotation-toolbar input { accent-color: #596f47; }
++.annotation-canvas { position: relative; display: grid; align-items: start; grid-template-columns: minmax(280px, 1fr) 250px; gap: 24px; min-width: 554px; }
++.annotation-rail { position: relative; border-left: 1px solid #e3e5db; min-width: 0; }
++.annotation-card { position: absolute; left: 12px; right: 0; padding: 14px; border: 1px solid #e0e3d8; border-radius: 10px; background: #fffefa; font-size: 12px; overflow-wrap: anywhere; box-shadow: 0 2px 8px #313a2608; }
++.annotation-card.active, .annotation-composer { border-color: #a8b88f; box-shadow: 0 3px 12px #313a2612; }
++.annotation-card.active::before { content: ''; position: absolute; left: -13px; top: 20px; width: 12px; border-top: 1px solid #a8b88f; }
++.annotation-card.resolved { opacity: .65; }
++.annotation-label { color: #647455; font-size: 11px; font-weight: 600; }
++.annotation-label span { font-weight: 400; }
++.annotation-card blockquote { font-size: 11px; max-height: 90px; overflow-y: auto; }
++.annotation-card p { line-height: 1.7; white-space: pre-wrap; margin: 12px 0; }
++.annotation-card .quiet-button { font-size: 11px; padding: 5px 9px; }
++.annotation-composer { display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
++.annotation-composer blockquote { margin: 0; }
++.annotation-composer textarea { width: 100%; font-size: 12px; }
++.annotation-actions { display: flex; gap: 8px; justify-content: flex-end; }
++.annotation-empty { margin: 8px 0 0 16px; font-size: 12px; color: #969c90; line-height: 1.8; }
++.detached-note { font-size: 11px; color: #a17a43; margin-top: 8px; }
++.markdown-document mark { background: #e9dda57a; color: inherit; border-bottom: 2px solid #c4af66; cursor: pointer; }
++.markdown-document mark.active-annotation { background: #e1ca76b3; border-color: #9c7e2f; }
++.markdown-document mark:focus-visible, .annotation-card:focus-visible { outline: 2px solid #6f8859; outline-offset: 3px; }
++.selection-popover { position: fixed; z-index: 10; box-shadow: 0 4px 20px #313a2630; }
++@media (max-width: 1000px) {
++  .app.reviewing { grid-template-columns: clamp(320px, var(--chat-width, 480px), calc(100% - 369px)) 9px minmax(0, 1fr); }
++  .reviewing .document-panel { margin-right: 0; }
++  .annotation-canvas { grid-template-columns: minmax(280px, 1fr) 220px; gap: 16px; min-width: 516px; }
++  .document-scroll { padding: 24px 16px 48px; }
++}
++@media (max-width: 760px) {
++  .app.reviewing { display: flex; flex-direction: column; overflow-y: auto; }
++  .panel-resizer { display: none; }
++  .reviewing .document-panel { flex: none; }
++  .reviewing .document-scroll { overflow: auto; max-height: 85dvh; flex: none; }
++  .reviewing .chat-panel { flex: none; min-height: 65dvh; border-right: 0; border-bottom: 1px solid #dcdfd2; }
++  .reviewing .chat-panel main { max-height: 55dvh; flex: auto; }
++  .document-toolbar { padding: 16px 20px; }
++}
+ @keyframes breathe { 50% { opacity: .3; } }
+ @media (prefers-reduced-motion: reduce) {
+   .pulse { animation: none; }
+diff --git a/tests/annotations.test.ts b/tests/annotations.test.ts
+new file mode 100644
+index 0000000..f268925
+--- /dev/null
++++ b/tests/annotations.test.ts
+@@ -0,0 +1,30 @@
++import { test } from 'node:test';
++import assert from 'node:assert/strict';
++import { locate } from '../frontend/annotations.ts';
++
++const annotation = (quote: string, prefix = '', suffix = '') => ({
++  id: 'comment', quote, anchor: { start: 0, end: quote.length, prefix, suffix },
++});
++
++test('locates a passage after text is inserted before it', () => {
++  assert.equal(locate('New introduction. Original passage here.', annotation('passage', 'Original ', ' here.')), 27);
++});
++
++test('uses context to distinguish repeated text', () => {
++  assert.equal(locate('First: plan. Second: plan.', annotation('plan', 'Second: ', '.')), 21);
++});
++
++test('does not attach ambiguous repeated text or removed passages', () => {
++  assert.equal(locate('plan plan', { id: 'legacy', quote: 'plan' }), null);
++  assert.equal(locate('plan plan', annotation('plan', 'Missing prefix ', '')), null);
++  assert.equal(locate('A rewritten paragraph', annotation('removed words')), null);
++  assert.equal(locate('anything', annotation('')), null);
++});
++
++test('legacy comments reattach only when their excerpt is unique', () => {
++  assert.equal(locate('A unique passage', { id: 'legacy', quote: 'unique' }), 2);
++});
++
++test('keeps whitespace and Unicode offsets in rendered text', () => {
++  assert.equal(locate('😀\nBold and italic text', annotation('Bold and italic')), 3);
++});
+diff --git a/tests/test_documents.py b/tests/test_documents.py
+new file mode 100644
+index 0000000..d9cfcf4
+--- /dev/null
++++ b/tests/test_documents.py
+@@ -0,0 +1,193 @@
++import json
++
++import pytest
++from fastapi import HTTPException
++from fastapi.testclient import TestClient
++
++from backend import documents
++from backend.app import app
++
++
++@pytest.fixture
++def workspace(tmp_path, monkeypatch):
++    root = tmp_path / "workspace"
++    root.mkdir()
++    monkeypatch.setattr(documents, "ROOT", root)
++    (root / "design.md").write_text("# Design\n\nA proposal.")
++    (root / ".local").mkdir()
++    (root / ".local" / "private.md").write_text("private")
++    (root / "node_modules").mkdir()
++    (root / "node_modules" / "package.md").write_text("dependency")
++    (root / "hidden.md").symlink_to(root / ".local" / "private.md")
++    return TestClient(app)
++
++
++def test_documents_and_boundaries(workspace):
++    assert workspace.get("/api/documents").json() == ["design.md"]
++    data = workspace.get("/api/documents/content", params={"path": "design.md"}).json()
++    assert data["content"].startswith("# Design")
++    assert data["comments"] == []
++    for path in ["../README.md", ".local/private.md", "hidden.md", "node_modules/package.md"]:
++        assert workspace.get("/api/documents/content", params={"path": path}).status_code == 404
++
++
++def test_native_picker_opens_original_without_writing(workspace, tmp_path, monkeypatch):
++    original = tmp_path / "outside.md"
++    original.write_text("# Outside")
++    before = sorted(tmp_path.rglob("*"))
++
++    async def choose():
++        return str(original)
++
++    monkeypatch.setattr(documents, "choose_markdown_file", choose)
++    response = workspace.post("/api/documents/pick")
++    assert response.json() == {"path": str(original)}
++    assert original.read_text() == "# Outside"
++    assert sorted(tmp_path.rglob("*")) == before
++    assert (
++        workspace.get("/api/documents/content", params={"path": str(original)}).json()["content"]
++        == "# Outside"
++    )
++    assert (
++        workspace.post("/api/documents/open", json={"name": "copy.md", "content": "no"}).status_code
++        == 404
++    )
++
++
++def test_picker_cancel_does_not_change_anything(workspace, monkeypatch):
++    async def choose():
++        return ""
++
++    monkeypatch.setattr(documents, "choose_markdown_file", choose)
++    assert workspace.post("/api/documents/pick").json() == {"path": None}
++
++
++def test_text_anchor_is_saved_and_validated(workspace):
++    anchor = {"start": 7, "end": 11, "prefix": "Before ", "suffix": " after"}
++    response = workspace.post(
++        "/api/documents/comments?path=design.md",
++        json={"text": "Clarify", "quote": "text", "anchor": anchor},
++    )
++    assert response.status_code == 201
++    assert response.json()["anchor"] == anchor
++    stored = workspace.get("/api/documents/content?path=design.md").json()["comments"][0]
++    assert stored["anchor"] == anchor
++    assert (
++        workspace.post(
++            "/api/documents/comments?path=design.md",
++            json={"text": "Invalid", "quote": "too long", "anchor": anchor},
++        ).status_code
++        == 422
++    )
++    assert (
++        workspace.post(
++            "/api/documents/comments?path=design.md",
++            json={"text": "Emoji", "quote": "😀", "anchor": {"start": 0, "end": 2}},
++        ).status_code
++        == 201
++    )
++
++
++def test_comments_persist_inside_markdown_and_resolve(workspace):
++    target = documents.ROOT / "design.md"
++    original = target.read_bytes()
++    url = "/api/documents/comments?path=design.md"
++    assert workspace.post(url, json={"text": "  "}).status_code == 422
++    response = workspace.post(url, json={"text": "Clarify this", "quote": "A proposal."})
++    assert response.status_code == 201
++    comment = response.json()
++    data = workspace.get("/api/documents/content?path=design.md").json()
++    assert data["comments"] == [comment]
++    assert target.read_bytes().startswith(original)
++    assert "markdown-review:v1" in target.read_text()
++    assert "markdown-review:v1" not in data["content"]
++    assert not (documents.ROOT / ".local" / "reviews.json").exists()
++    toggle = f"/api/documents/comments/{comment['id']}?path=design.md"
++    assert workspace.patch(toggle).json()["resolved"] is True
++    assert workspace.patch(toggle).json()["resolved"] is False
++    assert workspace.patch("/api/documents/comments/missing?path=design.md").status_code == 404
++    assert target.read_text().count("<!-- markdown-review:") == 1
++
++
++def test_comments_follow_rename_and_move(workspace, tmp_path):
++    comment = workspace.post(
++        "/api/documents/comments?path=design.md", json={"text": "Keep me"}
++    ).json()
++    moved = tmp_path / "renamed.md"
++    (documents.ROOT / "design.md").rename(moved)
++    data = workspace.get("/api/documents/content", params={"path": str(moved)}).json()
++    assert data["comments"] == [comment]
++    assert (
++        workspace.patch(
++            f"/api/documents/comments/{comment['id']}", params={"path": str(moved)}
++        ).json()["resolved"]
++        is True
++    )
++
++
++def test_html_comment_delimiters_round_trip_without_escape(workspace):
++    text = "Review --> <script>alert(1)</script> <!-- and -- and 😀"
++    response = workspace.post("/api/documents/comments?path=design.md", json={"text": text})
++    assert response.status_code == 201
++    source = (documents.ROOT / "design.md").read_text()
++    assert source.count("-->") == 1
++    assert "<script>" not in source
++    data = workspace.get("/api/documents/content?path=design.md").json()
++    assert data["comments"][0]["text"] == text
++
++
++def test_existing_central_comments_migrate_only_on_explicit_save(workspace):
++    target = documents.ROOT / "design.md"
++    original = target.read_bytes()
++    legacy = {"id": "existing", "text": "Earlier comment", "quote": "proposal", "resolved": False}
++    backup = documents.ROOT / ".local" / "reviews.json"
++    backup.write_text(json.dumps({"design.md": [legacy]}))
++    data = workspace.get("/api/documents/content?path=design.md").json()
++    assert data["storage"] == "legacy"
++    assert target.read_bytes() == original
++    data = workspace.post("/api/documents/migrate?path=design.md").json()
++    assert data["storage"] == "embedded"
++    assert data["comments"][0]["id"] == "existing"
++    backup.unlink()  # Embedded annotations are independent of the old store.
++    assert (
++        workspace.get("/api/documents/content?path=design.md").json()["comments"][0]["text"]
++        == "Earlier comment"
++    )
++
++
++def test_corrupt_metadata_is_not_overwritten(workspace):
++    target = documents.ROOT / "design.md"
++    source = "# Design\n\n<!-- markdown-review:v1\ninvalid JSON\n-->\n"
++    target.write_text(source)
++    assert (
++        workspace.post("/api/documents/comments?path=design.md", json={"text": "New"}).status_code
++        == 422
++    )
++    assert target.read_text() == source
++
++
++def test_concurrent_edit_is_not_overwritten(workspace):
++    target = documents.ROOT / "design.md"
++    original, source, comments, start, _ = documents.read_document(target)
++    target.write_text("# Changed externally")
++    with pytest.raises(HTTPException) as error:
++        documents.write_comments(target, original, source, comments, start)
++    assert error.value.status_code == 409
++    assert target.read_text() == "# Changed externally"
++    assert not list(target.parent.glob(".design.md.*"))
++
++
++def test_crlf_and_file_permissions_are_preserved(workspace):
++    target = documents.ROOT / "design.md"
++    target.write_bytes(b"# Design\r\n\r\nA proposal.\r\n")
++    target.chmod(0o640)
++    assert (
++        workspace.post(
++            "/api/documents/comments?path=design.md", json={"text": "Review"}
++        ).status_code
++        == 201
++    )
++    content = target.read_bytes()
++    assert content.startswith(b"# Design\r\n\r\nA proposal.\r\n")
++    assert b"\n" not in content.replace(b"\r\n", b"")
++    assert target.stat().st_mode & 0o777 == 0o640

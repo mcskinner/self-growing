@@ -1,0 +1,21 @@
+{
+  "format": 1,
+  "id": "markdown-reader",
+  "status": "draft",
+  "source_base": "a18a41f76aa45d8a17cbcccea680f3e16a49fd3f",
+  "source_head": "898db55839fad721fd9d5d6158e8c93440ac6323",
+  "paths": [
+    "backend/app.py",
+    "backend/documents.py",
+    "frontend/main.tsx",
+    "frontend/style.css",
+    "frontend/documents.tsx",
+    "frontend/annotations.ts",
+    "tests/test_documents.py",
+    "tests/annotations.test.ts"
+  ],
+  "commit_links": [
+    "https://github.com/mcskinner/self-growing/commit/898db55839fad721fd9d5d6158e8c93440ac6323"
+  ],
+  "transcript_included": false
+}
