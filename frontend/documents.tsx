@@ -26,8 +26,12 @@ export function DocumentPicker({ onOpen }: { onOpen: (path: string) => void }) {
     finally { setOpening(false); }
   }
   return <div className="document-picker">
-    <button className="quiet-button" disabled={opening} onClick={() => void open()}>
-      {opening ? 'Choosing…' : 'Open document…'}
+    <button className="icon-button" disabled={opening} aria-label="Open document" title={opening ? 'Choosing document…' : 'Open document'}
+      aria-busy={opening} onClick={() => void open()}>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"
+        strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+        <path d="M20 20H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2Z" />
+      </svg>
     </button>
     {error && <span className="error" role="alert">{error}</span>}
   </div>;
@@ -38,6 +42,8 @@ export function DocumentView({ path, busy, onClose, onReview }: {
 }) {
   const [doc, setDoc] = useState<Document | null>(null);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [candidate, setCandidate] = useState<Candidate | null>(null);
   const [draft, setDraft] = useState<SelectionAnchor | null>(null);
   const [text, setText] = useState('');
@@ -53,11 +59,16 @@ export function DocumentView({ path, busy, onClose, onReview }: {
   const url = `/api/documents/content?path=${encodeURIComponent(path)}`;
   useEffect(() => {
     const controller = new AbortController();
+    setLoading(true); setError('');
     request<Document>(url, { signal: controller.signal }).then(data => {
-      setDoc(data); setError('');
-    }).catch(err => { if (!controller.signal.aborted) setError(String(err)); });
+      if (!controller.signal.aborted) setDoc(data);
+    }).catch(err => {
+      if (controller.signal.aborted) return;
+      const message = err instanceof Error ? err.message : String(err);
+      setError(message === 'Not Found' ? 'The document service is not ready. Please retry.' : message);
+    }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [url, busy]);
+  }, [url, busy, loadAttempt]);
   const html = useMemo(() => DOMPurify.sanitize(marked.parse(doc?.content || '', { async: false }), {
     FORBID_TAGS: ['img', 'style', 'input', 'mark'], FORBID_ATTR: ['style', 'data-comments', 'data-thread'],
   }), [doc?.content]);
@@ -190,9 +201,10 @@ export function DocumentView({ path, busy, onClose, onReview }: {
         openComments.map((comment, index) => `${index + 1}. ${comment.quote ? `On this passage:\n> ${comment.quote.replace(/\n/g, '\n> ')}\n` : ''}${comment.text}`).join('\n\n')
       )}>Send review to chat ↗</button>
     </div>
-    <div className="document-scroll" onScroll={() => setCandidate(null)}>
-      {error && <div className="error" role="alert">{error}</div>}
-      {!doc ? <p>Loading document…</p> : <div className="annotation-canvas" ref={canvas}>
+    <div className="document-scroll" aria-busy={loading} onScroll={() => setCandidate(null)}>
+      {error && <div className="error" role="alert">{error} <button className="quiet-button" disabled={loading}
+        onClick={() => setLoadAttempt(attempt => attempt + 1)}>Retry</button></div>}
+      {!doc ? loading ? <p role="status">Loading document…</p> : null : <div className="annotation-canvas" ref={canvas}>
         <article className="markdown-document" ref={article} dangerouslySetInnerHTML={{ __html: annotated.html }}
           onClick={event => {
             if (window.getSelection()?.isCollapsed && (event.target as HTMLElement).closest('mark[data-comments]')) {

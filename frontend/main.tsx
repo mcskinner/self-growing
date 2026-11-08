@@ -216,13 +216,12 @@ function Chat({ state, connected, documentPath, onOpenDocument, review, onReview
       <a className="brand" href="/" aria-label="Self-growing home"><span className="seed" aria-hidden="true">✳</span><span className="brand-name">self-growing</span></a>
       <div className="header-actions">
         <span className="connection"><i className={connected ? 'online' : ''} />{connected ? 'Local workspace' : 'Connecting…'}</span>
+        <DocumentPicker onOpen={onOpenDocument} />
         <ChatDisplay showDetails={showDetails} onChange={setShowDetails} />
       </div>
     </header>
     <ChatHistory open={historyOpen} currentId={state.sessionId} blocked={switchingBlocked} switching={startingSession}
-      onClose={() => setHistoryOpen(false)} onSelect={id => void changeChat(id)} onNew={() => void changeChat()}>
-      <DocumentPicker onOpen={path => { onOpenDocument(path); setHistoryOpen(false); }} />
-    </ChatHistory>
+      onClose={() => setHistoryOpen(false)} onSelect={id => void changeChat(id)} onNew={() => void changeChat()} />
     <section className="chat-panel" aria-label="Pi chat">
       {documentPath && <div className="chat-heading"><span className="seed" aria-hidden="true">✳</span> Pi <span>Your design partner</span></div>}
     <main ref={scroller}

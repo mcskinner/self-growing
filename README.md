@@ -70,7 +70,7 @@ uv can install it if needed. Ctrl+C stops the dev servers.
 
 ## Markdown review
 
-**Open document…** in the **Chats** drawer uses the macOS native file chooser to open an original Markdown file,
+The **Open document** folder icon in the header uses the macOS native file chooser to open an original Markdown file,
 without copying or importing it. Select text and choose **+ Comment** to add an annotation
 in the side rail. Saving or resolving annotations updates an HTML metadata block inside
 that Markdown file, so comments travel with it when renamed or moved. The chat stays on

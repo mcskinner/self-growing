@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 interface SavedChat { id: string; title: string; updatedAt: string | null }
 
-export function ChatHistory({ open, currentId, blocked, switching, onClose, onSelect, onNew, children }: {
+export function ChatHistory({ open, currentId, blocked, switching, onClose, onSelect, onNew }: {
   open: boolean; currentId: string | null; blocked: boolean; switching: boolean;
-  onClose: () => void; onSelect: (id: string) => void; onNew: () => void; children?: ReactNode;
+  onClose: () => void; onSelect: (id: string) => void; onNew: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const motion = useRef<Animation | null>(null);
@@ -61,7 +61,6 @@ export function ChatHistory({ open, currentId, blocked, switching, onClose, onSe
         </svg>
       </button>
     </div>
-    {children}
     <button className="quiet-button history-new" disabled={blocked} onClick={onNew}>New chat</button>
     {blocked && <p className="history-note" role="status">{switching ? 'Opening chat…' : 'Finish or stop the run and clear unsent messages before switching chats.'}</p>}
     {loading && <p className="history-note" role="status">Loading chats…</p>}
