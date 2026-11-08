@@ -2,7 +2,7 @@
 
 A mixed implementation was distilled with the existing adapt skill, then independently applied by fresh Pi sessions to starter and workshop targets. No preemptive skill, tooling, or target-code fixes were made. See the [prospective protocol](../../experiments/markdown-reader/protocol.md).
 
-**Owner acceptance failed** for the first integration: [review](integration/owner-review.md). Functional browser checks did not establish layout or visual fidelity. A [fresh fidelity retry](../../experiments/markdown-reader-fidelity/protocol.md) uses revised descriptions; the running implementation is not the reference target.
+**Owner acceptance failed** for the first integration: [review](integration/owner-review.md). Functional browser checks did not establish layout or visual fidelity. A [fresh fidelity retry](../../experiments/markdown-reader-fidelity/protocol.md) used revised descriptions and passed preliminary functional/reference comparisons. It is now the [running preview at 7fb3524](integration/fidelity-preview.md), with **owner acceptance pending**. The rejected implementation was not used as the reference target.
 
 ## What to read
 
@@ -10,6 +10,7 @@ A mixed implementation was distilled with the existing adapt skill, then indepen
 - [Starter first attempt](applications/starter-01/coordinator-review.md): existing evaluator passed; applier-authored isolated Playwright smoke passed its scenarios. No independent coordinator browser replay on this target.
 - [Workshop first attempt](applications/trunk-01/coordinator-review.md): existing evaluator passed; independent browser verification passed 7/8 scenario groups. Relative Markdown links were not navigable.
 - [Prompted workshop repair](applications/trunk-repair-01/coordinator-review.md): existing evaluator and all 8 independent browser groups passed. This is repair evidence, not a successful new blind transfer.
+- [Fresh combined fidelity attempt](applications/fidelity-01/coordinator-review.md): revised left-chat/reader descriptions, original reference, historical workshop base, comparison captures and pending owner gate.
 - [Verification recipe](verification-recipe.md): behavioral actions and assertions, added after the initial attempts rather than silently injected into their inputs.
 - [Candidate instruction addition](candidates/relative-markdown-navigation.md): one proposed sentence arising from the gap. The navigation requirement is now included in the revised description for a fresh fidelity retry; it was absent from the frozen first description.
 
@@ -25,4 +26,4 @@ The independent browser recipe caught what check/test/build and applier-authored
 
 The evaluated workshop implementation was ported to trunk as 4e7951d, followed by the navigation repair as 6cc23d9. Only a wiki-log append conflict required manual resolution; both histories were retained. No coordinator runtime-code edits were needed. The integrated production build also passed all eight isolated browser scenario groups; see [results](integration/coordinator-browser.json) and [log](integration/coordinator-browser.log). This harness uses mocked APIs/chat and does not contact the running app. The running app gains a read-only reader with relative Markdown-file links, but no comment layer. Native dialog and live-provider acceptance remain unverified; heading-fragment scrolling and document back/forward controls are not implemented.
 
-Use **Open Markdown** and enter `docs/wiki/index.md` to try it after the backend reloads. No source Markdown is modified or imported by the reader.
+That text-button implementation was subsequently rejected by the owner and replaced with the fresh icon-led preview above. Use the shared-header **folder icon** to choose a Markdown file after the backend reloads. No source Markdown is modified or imported by the reader.

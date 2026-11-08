@@ -1,6 +1,6 @@
 # Experiment: combine left chat and reader without losing the reference experience
 
-Status: planned before fresh application. Owner review of prior integration: [failed](../../adaptations/markdown-reader/integration/owner-review.md).
+Status: fresh application and preliminary checks complete; running preview at 7fb3524 awaits owner acceptance. Plan was committed before application as d7640c4. Owner review of prior integration: [failed](../../adaptations/markdown-reader/integration/owner-review.md).
 
 ## Question
 Can revised minimal descriptions of left chat and the Markdown reader produce the intended combined experience on the historical workshop base, rather than merely two functionally plausible panes?
@@ -25,4 +25,10 @@ Shared logo-bearing app header above both panes; chat left and reader right on d
 Application prompts, snapshots, provenance, diffs, evaluation results, and reference/candidate browser artifacts. Use synthetic/public fixtures, never private chat screenshots. Existing Pi login; isolated sessions; no second app server or provider calls for browser fixtures. Describe missed checks explicitly.
 
 ## Results
-Pending. Previewing changes in the running app is necessary for review, not a substitute for the gate.
+A fresh Pi session produced 3177e64 from 233ef73, with no coordinator code edits. Existing record/evaluate commands passed. Additional frozen left-chat/verification inputs were copied manually and hashed, without framework changes. The applier directly inspected the allowed reference, not earlier generated applications.
+
+Coordinator replayed the candidate's isolated Playwright script successfully. A separate renderer captured source and candidate with identical public Markdown/chat fixtures at 1280x900 and 390x844. Shared header bounds, left-chat/right-reader arrangement, paragraph/link/inline-code/block-code/pre/body styles, icon-control inventory, no narrow page overflow, and no page errors passed recorded comparisons. Agent inspection found reference-like visual treatment, excluding annotations. This is not owner approval. Reference screenshots suppress comment UI/grid in browser CSS only, with raw reference desktop also retained. A capture timing issue was resolved by waiting for the draft's Send button to enable; no candidate code changed.
+
+Candidate runtime/test files were deployed as preview 7fb3524, replacing rather than incrementally repairing the rejected implementation. Current workshop wiki/lab and saved chat remain. Check/test/build passed on the preview (55 Python, 19 frontend tests); the isolated UI replay passed again. No app server or live-provider call was started for checks. Native dialog, live chat, broad accessibility/browser coverage, and OWNER ACCEPTANCE remain unverified/pending.
+
+Evidence: [application record](../../adaptations/markdown-reader/applications/fidelity-01/coordinator-review.md) and [running preview](../../adaptations/markdown-reader/integration/fidelity-preview.md). Previewing changes in the running app is necessary for review, not a substitute for the gate.

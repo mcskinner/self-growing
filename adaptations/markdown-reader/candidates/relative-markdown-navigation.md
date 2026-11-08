@@ -1,6 +1,6 @@
 # Candidate: relative Markdown navigation
 
-Status: proposed after first applications and now included in the revised description for the fidelity retry. It remains absent from the frozen first description and not yet validated by a fresh application.
+Status: proposed after first applications and now included in the revised description for the fidelity retry. It remains absent from the frozen first description. A fresh application of the combined revised descriptions (3177e64) now passes relative-link browser checks; the isolated effect of this sentence was not tested, and owner acceptance of the combined preview is pending.
 
 ## Suggested instruction addition
 
@@ -14,4 +14,4 @@ This exposes a mismatch between the coordinator's desired acceptance and the dis
 
 ## Evidence and validation
 
-See ../applications/trunk-01/coordinator-review.md and ../verification-recipe.md. A separate prompted repair passed automated checks and all eight isolated-browser scenario groups; see ../applications/trunk-repair-01/coordinator-review.md. This demonstrates feasibility, not instruction sufficiency; test this candidate on a fresh target before treating it as hardened guidance.
+See ../applications/trunk-01/coordinator-review.md and ../verification-recipe.md. A separate prompted repair passed automated checks and all eight isolated-browser scenario groups; see ../applications/trunk-repair-01/coordinator-review.md. That repair demonstrated feasibility, not instruction sufficiency. The later fresh combined revision supplies additional functional transfer evidence as noted above, not a causal comparison of this sentence alone or owner approval.

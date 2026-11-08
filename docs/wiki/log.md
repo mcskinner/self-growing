@@ -37,3 +37,7 @@ Integrated only the evaluated workshop reader and repair into trunk, preserving 
 ## [2026-11-08] owner review | Functional reader integration failed experience acceptance
 
 The owner rejected the integrated reader's pane orientation, app-header nesting, Markdown visual treatment, and drift from reference icon controls. Recorded the [review](../../adaptations/markdown-reader/integration/owner-review.md), revised left-chat/reader descriptions, and planned a [fresh application from the original workshop base](../../experiments/markdown-reader-fidelity/protocol.md). No control-plane scope or composition-brief architecture was introduced. A running preview is required for owner review; successful automated checks are not owner acceptance.
+
+## [2026-11-08] preview | Fresh combined application ready for owner review
+
+A new session applied revised left-chat and reader descriptions directly to 233ef73 using the original reference, not the rejected reader. Candidate 3177e64 passed functional checks and reference-style comparisons. Put it into the running workshop as [preview 7fb3524](../../adaptations/markdown-reader/integration/fidelity-preview.md), preserving wiki/lab and saved sessions. Reference/candidate captures use public fixtures; browser APIs/chat are mocked. Owner acceptance remains pending. No composition-brief abstraction, control-plane scope, or coordinator runtime-code repair was added.
