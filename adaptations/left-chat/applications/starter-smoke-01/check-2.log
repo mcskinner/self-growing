@@ -1,0 +1,48 @@
+uv run pytest
+warning: `VIRTUAL_ENV=/Users/michael/dev/self-growing/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead
+============================= test session starts ==============================
+platform darwin -- Python 3.13.2, pytest-9.2.0, pluggy-1.7.0
+rootdir: /Users/michael/dev/self-growing-left-chat-smoke-01
+configfile: pyproject.toml
+plugins: anyio-4.16.0
+collected 32 items
+
+tests/test_app.py .................F                                     [ 56%]
+tests/test_dev.py .....                                                  [ 71%]
+tests/test_install.py ........                                           [ 96%]
+tests/test_pi.py .                                                       [100%]
+
+=================================== FAILURES ===================================
+_____________________________ test_local_security ______________________________
+
+client = <starlette.testclient.TestClient object at 0x10885ef10>
+
+    def test_local_security(client):
+        assert (
+            client.post(
+                "/api/chat",
+                json={"message": "Hi"},
+                headers={
+                    "Origin": "https://evil.example",
+                },
+            ).status_code
+            == 403
+        )
+        assert client.get("/api/state", headers={"Host": "evil.example"}).status_code == 400
+>       assert client.get("/api/state", headers={"Origin": "http://127.0.0.1:5173"}).status_code == 200
+E       AssertionError: assert 403 == 200
+E        +  where 403 = <Response [403 Forbidden]>.status_code
+E        +    where <Response [403 Forbidden]> = get('/api/state', headers={'Origin': 'http://127.0.0.1:5173'})
+E        +      where get = <starlette.testclient.TestClient object at 0x10885ef10>.get
+
+tests/test_app.py:444: AssertionError
+=============================== warnings summary ===============================
+.venv/lib/python3.13/site-packages/fastapi/testclient.py:1
+  /Users/michael/dev/self-growing-left-chat-smoke-01/.venv/lib/python3.13/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_app.py::test_local_security - AssertionError: assert 403 ==...
+=================== 1 failed, 31 passed, 1 warning in 4.38s ====================
+make[1]: *** [test] Error 1

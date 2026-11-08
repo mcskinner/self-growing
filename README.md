@@ -22,7 +22,10 @@ Other offshoots include
 a Markdown reader with anchored annotations and side-by-side chat. The larger experiment
 is learning how to exchange adaptations: an explanation of a transformation, backed by
 its application history and code diffs. That's a direction to explore, not an implemented
-plugin protocol.
+plugin protocol. The first file-based experiment is in the
+**[adaptation lab](adaptations/README.md)**: extract a minimal description, apply it to a
+fresh starter, record feedback and diffs, and evaluate the result. Its prospective plan
+is in [`experiments/adaptation-loop/protocol.md`](experiments/adaptation-loop/protocol.md).
 
 The installer below starts you from `starter`. To work in the workshop instead, pass
 `--branch trunk` to the piped installer with a separate `--dir PATH`, or clone this branch

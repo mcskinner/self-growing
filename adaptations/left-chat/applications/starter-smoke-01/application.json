@@ -1,0 +1,17 @@
+{
+  "format": 1,
+  "adaptation": "left-chat",
+  "adaptation_path": "/Users/michael/dev/self-growing-trunk/adaptations/left-chat",
+  "adaptation_source_head": "947eed4a6047b436f6a9dc3dd96bf9c9116aef60",
+  "description_sha256": "cd1b092dd9de60b753e665c6d5220496cf9d71f1199293622cc170c29e31756e",
+  "base": "6116d82c7bcb1ed49af5b9a1b0edd41c045ad4e8",
+  "worktree": "/Users/michael/dev/self-growing-left-chat-smoke-01",
+  "feedback": "feedback.md",
+  "head": "f41b6d95766334f7cbca14e1ed3606288b664ddd",
+  "commits": [
+    "f41b6d95766334f7cbca14e1ed3606288b664ddd"
+  ],
+  "commit_links": [
+    "https://github.com/mcskinner/self-growing/commit/f41b6d95766334f7cbca14e1ed3606288b664ddd"
+  ]
+}

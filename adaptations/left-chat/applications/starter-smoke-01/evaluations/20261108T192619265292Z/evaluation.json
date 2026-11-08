@@ -1,0 +1,24 @@
+{
+  "head": "f41b6d95766334f7cbca14e1ed3606288b664ddd",
+  "at": "2026-11-08T19:26:26.821799+00:00",
+  "automated_checks_passed": true,
+  "checks": [
+    {
+      "command": "make check",
+      "exit_code": 0,
+      "log": "evaluations/20261108T192619265292Z/check-1.log"
+    },
+    {
+      "command": "make test",
+      "exit_code": 0,
+      "log": "evaluations/20261108T192619265292Z/check-2.log"
+    },
+    {
+      "command": "make build",
+      "exit_code": 0,
+      "log": "evaluations/20261108T192619265292Z/check-3.log"
+    }
+  ],
+  "environment": "Inherited except WEB_PORT, API_PORT, VIRTUAL_ENV; command may override",
+  "behavioral_acceptance": "not-assessed; see feedback.md"
+}

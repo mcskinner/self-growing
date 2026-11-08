@@ -1,0 +1,11 @@
+uv run ruff check .
+warning: `VIRTUAL_ENV=/Users/michael/dev/self-growing/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead
+All checks passed!
+uv run ruff format --check .
+warning: `VIRTUAL_ENV=/Users/michael/dev/self-growing/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead
+9 files already formatted
+npm run check
+
+> self-growing@0.1.0 check
+> tsc --noEmit
+

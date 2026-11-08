@@ -1,0 +1,9 @@
+uv run ruff check .
+All checks passed!
+uv run ruff format --check .
+9 files already formatted
+npm run check
+
+> self-growing@0.1.0 check
+> tsc --noEmit
+

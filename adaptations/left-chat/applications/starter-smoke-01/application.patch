@@ -1,0 +1,46 @@
+diff --git a/frontend/main.tsx b/frontend/main.tsx
+index 0926892..03a9510 100644
+--- a/frontend/main.tsx
++++ b/frontend/main.tsx
+@@ -121,6 +121,8 @@ function App() {
+       <div className="header-actions"><ChatDisplay showDetails={showDetails} onChange={setShowDetails} />
+         <span className="connection"><i className={connected ? 'online' : ''} />{connected ? 'Local workspace' : 'Connecting…'}</span></div>
+     </header>
++    <div className="workspace">
++    <section className="chat-panel" aria-label="Pi chat">
+     <main ref={scroller} onScroll={() => {
+       const el = scroller.current!;
+       follow.current = el.scrollHeight - el.scrollTop - el.clientHeight < 100;
+@@ -170,6 +172,11 @@ function App() {
+       </form>
+       <div className="footnote"><span>Pi can edit files and run commands in this workspace.</span><span>Enter to {state.busy ? 'steer' : 'send'} · Shift + Enter for a new line</span></div>
+     </footer>
++    </section>
++    <section className="workspace-panel" aria-label="Workspace">
++      <p>Room to grow.</p>
++    </section>
++    </div>
+   </div>;
+ }
+ 
+diff --git a/frontend/style.css b/frontend/style.css
+index c10cdd1..1d838e0 100644
+--- a/frontend/style.css
++++ b/frontend/style.css
+@@ -67,6 +67,16 @@ button:focus-visible, a:focus-visible { outline: 2px solid #6f8859; outline-offs
+ .pending-steering ul { max-height: 120px; overflow-y: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+ .stop-button { background: #eeeee7; color: #737b69; font-size: 16px; }
+ .stop-button:hover { background: #e1e5d8; }
++.workspace { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(320px, 480px) minmax(0, 1fr); }
++.chat-panel { min-width: 0; min-height: 0; display: flex; flex-direction: column; border-right: 1px solid #e6e7de; }
++.chat-panel .footnote { flex-wrap: wrap; }
++.chat-panel .desktop { display: none; }
++.workspace-panel { min-width: 0; overflow: auto; padding: 32px; color: #8b8e82; }
++@media (max-width: 760px) {
++  .workspace { grid-template-columns: minmax(0, 1fr); }
++  .chat-panel { border-right: 0; }
++  .workspace-panel { display: none; }
++}
+ @keyframes breathe { 50% { opacity: .3; } }
+ @media (prefers-reduced-motion: reduce) { .pulse { animation: none; } }
+ @media (max-width: 600px) {
