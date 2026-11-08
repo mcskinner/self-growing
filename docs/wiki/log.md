@@ -23,3 +23,7 @@ Captured the user's proposal for [adaptation-led development](adaptation-led-dev
 ## [2026-11-08] discussion | Acceptance evidence travels with adaptations
 
 Captured the user's proposal for [acceptance and verification](acceptance-and-verification.md): prescribed behavioral steps, screenshots, and potentially Playwright scripts. Distinguished layout evidence from interaction evidence, simulated UI tests from live chat, and applier-authored tests from independent acceptance. Recorded privacy, cost, and overfitting concerns without introducing a new verification system or altering the first blind applications. The user then preferred a recipe for writing a target-specific Playwright test over screenshots as primary evidence; refined the page accordingly.
+
+## [2026-11-08] review | Coordinator-prompted Markdown-reader repair
+
+The coordinator reported that the preserved first application passed automated and isolated browser checks but failed relative Markdown-link navigation: sanitization removed the links' hrefs. This repair adds document-relative navigation and targeted renderer, reader-lifecycle, and read-only API tests without changing the adaptation description. It is a prompted repair, not evidence of a blind first transfer. Automated regression coverage now exercises the missing behavior; live browser/provider acceptance was not rerun. This reinforces the distinction between passing checks and satisfying the original exploration's acceptance criteria.

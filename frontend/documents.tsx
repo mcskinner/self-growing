@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode, type MouseEvent } from 'react';
 import { renderMarkdown } from './markdown';
 
 interface DocumentData { path: string; name: string; content: string }
@@ -40,7 +40,7 @@ export function ReaderLayout({ busy, children }: { busy: boolean; children: Reac
         const result = await response.json();
         if (!response.ok) throw new Error(result.detail || 'Could not read Markdown');
         if (controller.signal.aborted) return;
-        setHtml(renderMarkdown(result.content)); setData(result);
+        setHtml(renderMarkdown(result.content, result.path)); setData(result);
       } catch (err) {
         if (!controller.signal.aborted) setError(String(err));
       } finally { if (!controller.signal.aborted) setLoading(false); }
@@ -51,6 +51,12 @@ export function ReaderLayout({ busy, children }: { busy: boolean; children: Reac
   function open(value: string) {
     choiceVersion.current++;
     setPath(value); setRetry(count => count + 1); setPicker(false); setChooserError('');
+  }
+  function followLink(event: MouseEvent<HTMLElement>) {
+    const link = (event.target as HTMLElement).closest<HTMLAnchorElement>('a[data-reader-path]');
+    if (!link || event.button > 1) return;
+    event.preventDefault();
+    open(link.dataset.readerPath!);
   }
   async function choose() {
     const version = ++choiceVersion.current;
@@ -87,7 +93,8 @@ export function ReaderLayout({ busy, children }: { busy: boolean; children: Reac
       {path && <><section className="document-pane" aria-label="Markdown reader" style={{ flexBasis: `${width}%` }}>
         {loading && <p className="reader-notice" role="status">Loading Markdown…</p>}
         {error && <div className="reader-notice error" role="alert">{error} <button className="quiet-button" onClick={() => setRetry(value => value + 1)}>Retry</button></div>}
-        {data && <article className="markdown-document" dangerouslySetInnerHTML={{ __html: html }} />}
+        {data && <article className="markdown-document" onClick={followLink} onAuxClick={followLink}
+          dangerouslySetInnerHTML={{ __html: html }} />}
       </section>
       <div className="reader-separator" role="separator" tabIndex={0} aria-label="Reader width" aria-orientation="vertical"
         aria-valuemin={30} aria-valuemax={70} aria-valuenow={Math.round(width)} aria-controls="reader-chat"

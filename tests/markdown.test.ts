@@ -4,7 +4,7 @@ import { JSDOM } from 'jsdom';
 
 const dom = new JSDOM('');
 Object.assign(globalThis, { window: dom.window, document: dom.window.document });
-const { renderMarkdown } = await import('../frontend/markdown.ts');
+const { renderMarkdown, relativeMarkdownPath } = await import('../frontend/markdown.ts');
 
 test('readable Markdown with no resource loading or active HTML', () => {
   const html = renderMarkdown(`# Title
@@ -49,4 +49,39 @@ const x = 1;
     assert.equal(link.getAttribute('rel'), 'noopener noreferrer');
     assert.equal(link.getAttribute('target'), '_blank');
   }
+});
+
+test('relative Markdown links resolve against original files, with no resource capability', () => {
+  const base = '/outside/a folder/current #1.md';
+  for (const [href, expected] of [
+    ['next.md', '/outside/a folder/next.md'],
+    ['../other/guide.markdown#heading', '/outside/other/guide.markdown'],
+    ['./encoded%20%23%25.MD?view=1#part', '/outside/a folder/encoded #%.MD'],
+    ['current%20%231.md', base],
+  ]) assert.equal(relativeMarkdownPath(href, base), expected);
+  for (const href of ['#heading', '?q=x', '/absolute.md', '//host/a.md',
+    'file:///secret.md', ' file:///secret.md ', 'fi\nle:///secret.md',
+    'https://host/a.md', 'javascript:alert(1)',
+    'data:text/plain,a.md', 'bad%ZZ.md', 'bad%00.md', 'image.png',
+    'bad\\path.md', 'bad%5cpath.md']) {
+    assert.equal(relativeMarkdownPath(href, base), null, href);
+  }
+  assert.equal(relativeMarkdownPath('next.md', 'workspace.md'), null);
+  const result = new JSDOM(renderMarkdown(`
+[Next](../next.md) [Web](https://example.com/a.md) [Mail](mailto:a@example.com)
+[Other](plain.txt) [Absolute](/etc/a.md)
+<a href="image.png" data-reader-path="/forged.md" onclick="alert(1)">Forged</a>
+<img src="../image.png"><iframe src="../a.md"></iframe>
+`, base)).window.document;
+  const internal = result.querySelector('a[data-reader-path]')!;
+  assert.equal(internal.getAttribute('href'), '../next.md');
+  assert.equal(internal.getAttribute('data-reader-path'), '/outside/next.md');
+  assert.equal(internal.hasAttribute('target'), false);
+  assert.equal(result.querySelectorAll('[data-reader-path]').length, 1);
+  assert.equal(result.querySelectorAll('a[href]').length, 3);
+  for (const link of result.querySelectorAll('a[target]')) {
+    assert.equal(link.getAttribute('target'), '_blank');
+    assert.equal(link.getAttribute('rel'), 'noopener noreferrer');
+  }
+  assert.equal(result.querySelectorAll('img,iframe,[onclick]').length, 0);
 });

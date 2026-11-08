@@ -91,3 +91,53 @@ test('document lifecycle stays independent of chat, refreshes after work, and ca
     globalThis.fetch = originalFetch;
   }
 });
+
+test('relative links follow original files inside reader without remounting chat', async () => {
+  sessionStorage.setItem('open-document', '/outside/docs/start.md');
+  const originalFetch = globalThis.fetch;
+  const reads: string[] = [];
+  let missing = true;
+  globalThis.fetch = (async (url: string) => {
+    const path = new URL(url, 'http://localhost').searchParams.get('path')!;
+    reads.push(path);
+    if (path.endsWith('missing.md') && missing) {
+      return Response.json({ detail: 'Missing linked file' }, { status: 404 });
+    }
+    const content = path.endsWith('start.md')
+      ? '[**Next**](../guides/next%20file.markdown#section) [External](https://example.com)'
+      : '[Missing](./missing.md) [Start](../docs/start.md)';
+    return Response.json({ path, name: path.split('/').pop(), content });
+  }) as typeof fetch;
+  const root = createRoot(document.getElementById('root')!);
+  const follow = async (selector: string, options = {}) => {
+    const link = document.querySelector(selector)!;
+    assert.ok(link);
+    const event = new dom.window.MouseEvent('click', { bubbles: true, cancelable: true, ...options });
+    await act(async () => { link.dispatchEvent(event); });
+    assert.equal(event.defaultPrevented, true);
+  };
+  try {
+    await act(async () => root.render(<ReaderLayout busy={true}><textarea defaultValue="Unsent chat draft" /></ReaderLayout>));
+    const chat = document.querySelector('textarea');
+    await follow('article a strong'); // Delegation also handles nested Markdown markup.
+    assert.equal(reads.at(-1), '/outside/guides/next file.markdown');
+    assert.equal(sessionStorage.getItem('open-document'), reads.at(-1));
+    assert.equal(document.querySelector('textarea'), chat);
+    assert.equal(chat!.value, 'Unsent chat draft');
+    await follow('article a', { ctrlKey: true });
+    assert.match(document.querySelector('[role="alert"]')!.textContent!, /Missing linked file/);
+    assert.equal(document.querySelector('textarea'), chat);
+    missing = false;
+    await click('Retry');
+    assert.ok(document.querySelector('article'));
+    await follow('article a:nth-child(2)');
+    assert.equal(reads.at(-1), '/outside/docs/start.md');
+    const external = document.querySelector('article a:nth-child(2)')!;
+    assert.equal(external.getAttribute('target'), '_blank');
+    assert.equal(external.getAttribute('rel'), 'noopener noreferrer');
+    assert.equal(document.querySelector('textarea'), chat);
+  } finally {
+    await act(async () => root.unmount());
+    globalThis.fetch = originalFetch;
+  }
+});
