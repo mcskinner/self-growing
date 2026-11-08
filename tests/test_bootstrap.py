@@ -145,8 +145,12 @@ def test_piped_installer_clones_and_reuses_a_checkout(checkout, tmp_path):
     assert note.read_text() == "Do not overwrite"
 
 
-def test_piped_installer_requires_a_real_repository_url(checkout, tmp_path):
-    root, _, _, env = checkout
+def test_piped_installer_defaults_to_published_repository(checkout, tmp_path):
+    root, tools, log, env = checkout
+    git = tools / "git"
+    git.write_text('#!/bin/sh\nprintf "%s\\n" "$*" >> "$BOOTSTRAP_TEST_LOG"\nexit 77\n')
+    git.chmod(0o755)
+    env["SELF_GROWING_DIR"] = str(tmp_path / "fresh-install")
     result = subprocess.run(
         ["sh", "-s"],
         input=(root / "bootstrap").read_text(),
@@ -156,5 +160,22 @@ def test_piped_installer_requires_a_real_repository_url(checkout, tmp_path):
         capture_output=True,
         timeout=10,
     )
+    assert result.returncode == 77  # The fake Git never performs a network request.
+    command = log.read_text()
+    assert "https://github.com/mcskinner/self-growing.git" in command
+    assert "--branch starter-kit" in command
+
+
+def test_piped_installer_rejects_an_explicit_empty_repository(checkout, tmp_path):
+    root, _, _, env = checkout
+    result = subprocess.run(
+        ["sh", "-s", "--", "--repo", ""],
+        input=(root / "bootstrap").read_text(),
+        cwd=tmp_path,
+        env=env,
+        text=True,
+        capture_output=True,
+        timeout=10,
+    )
     assert result.returncode != 0
-    assert "--repo" in result.stderr
+    assert "must not be empty" in result.stderr

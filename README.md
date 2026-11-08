@@ -7,13 +7,11 @@ A small web app you can change by talking to it. One chat, one local workspace, 
 The installer can clone the repository and launch the stack for you:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/OWNER/REPO/starter-kit/bootstrap | \
-  sh -s -- --repo https://github.com/OWNER/REPO.git
+curl -fsSL https://raw.githubusercontent.com/mcskinner/self-growing/starter-kit/bootstrap | sh
 ```
 
-**Publishing note:** replace `OWNER/REPO` with the real repository before distributing this
-command. This checkout has no Git remote configured, so the URL above is a placeholder.
-The installer needs Git and uses `~/.local/share/self-growing` by default; pass `--dir PATH`
+The installer clones [`mcskinner/self-growing`](https://github.com/mcskinner/self-growing).
+It needs Git and uses `~/.local/share/self-growing` by default; pass `--dir PATH`
 to choose another directory. Repeated runs reuse that checkout without pulling updates,
 switching branches, or overwriting local edits. Only pipe installer code you trust into a shell;
 you can download and inspect the script first instead.
@@ -35,7 +33,7 @@ started by this launcher in the same checkout instead of reinstalling its depend
 Already installed Pi? Its existing login is reused. Use `./bootstrap --login` to open Pi's
 login flow first, or `./bootstrap --no-login` when credentials are already configured.
 `./bootstrap --no-open` starts without opening a browser. The piped installer accepts the
-same flags, plus `--branch REF` (default: `starter-kit`) and `--dir PATH`. The local installs are reused on
+same flags, plus `--branch REF` (default: `starter-kit`), `--dir PATH`, and `--repo URL` for forks. The local installs are reused on
 later launches; run `./bootstrap` again after closing the terminal.
 
 Prefer starting with Pi? Install Pi, log in, open this checkout in Pi, and ask it to help

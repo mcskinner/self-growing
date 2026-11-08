@@ -3,7 +3,7 @@
 set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-REPO=${SELF_GROWING_REPO:-}
+REPO=${SELF_GROWING_REPO:-https://github.com/mcskinner/self-growing.git}
 BRANCH=${SELF_GROWING_BRANCH:-starter-kit}
 DEST=${SELF_GROWING_DIR:-"$HOME/.local/share/self-growing"}
 NODE_VERSION=22.23.2
@@ -32,7 +32,7 @@ while [ "$#" -gt 0 ]; do
       shift ;;
     --help) printf '%s\n' \
       'Usage: bootstrap [--repo URL] [--branch REF] [--dir PATH] [--login | --no-login] [--no-open]' \
-      'Can run from a checkout or via curl | sh with --repo URL.' \
+      'Can run from a checkout or via curl | sh; defaults to mcskinner/self-growing.' \
       'The remote entry clones starter-kit into ~/.local/share/self-growing by default.' \
       'Installs missing tools locally and starts the app. Newly installed Pi opens for /login.'; exit 0 ;;
     *) die "Unknown option: $1 (try --help)" ;;
@@ -42,7 +42,7 @@ done
 
 export OPEN_BROWSER
 if [ ! -f "$ROOT/pyproject.toml" ] || [ ! -f "$ROOT/scripts/dev.py" ]; then
-  [ -n "$REPO" ] || die 'For curl | sh, pass --repo <repository-url> (the published repository URL is not configured yet).'
+  [ -n "$REPO" ] || die 'Repository URL must not be empty; use --repo <repository-url>.'
   command -v git >/dev/null 2>&1 || die 'Install Git, then run this installer again.'
   if [ -e "$DEST" ]; then
     [ -d "$DEST/.git" ] && [ -f "$DEST/bootstrap" ] || die "Destination already exists and is not an app checkout: $DEST"
