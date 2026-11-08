@@ -1,7 +1,7 @@
 # Markdown reader
 
 ## Intent
-Add comfortable local Markdown reading inside the app without losing the working Pi chat. Let the user choose an original `.md` or `.markdown` file, including outside the workspace, read it in the workspace beside chat, choose another, and close it without losing chat. Open files in place, not as uploaded copies.
+Add comfortable local Markdown reading inside the app without losing the working Pi chat. Let the user choose an original `.md` or `.markdown` file, including outside the workspace, read it in the workspace beside chat, choose another, and close it to restore full-screen chat when no workspace view remains. Open files in place, not as uploaded copies.
 
 ## Boundaries
 - Reading is read-only: do not modify documents or create imported copies or metadata.

@@ -2,7 +2,7 @@
 
 A mixed implementation was distilled with the existing adapt skill, then independently applied by fresh Pi sessions to starter and workshop targets. No preemptive skill, tooling, or target-code fixes were made. See the [prospective protocol](../../experiments/markdown-reader/protocol.md).
 
-**Owner acceptance failed** for the first integration: [review](integration/owner-review.md). Functional browser checks did not establish layout or visual fidelity. A [fresh fidelity retry](../../experiments/markdown-reader-fidelity/protocol.md) used revised descriptions and passed preliminary functional/reference comparisons. It is now the [running preview at 7fb3524](integration/fidelity-preview.md), with **owner acceptance pending**. The rejected implementation was not used as the reference target.
+**Owner acceptance failed** for the first integration: [review](integration/owner-review.md). Functional browser checks did not establish layout or visual fidelity. A [fresh fidelity retry](../../experiments/markdown-reader-fidelity/protocol.md) used revised descriptions and passed preliminary functional/reference comparisons. Its [preview at 7fb3524](integration/fidelity-preview.md) was subsequently **accepted by the owner with refinements**. The current local refinement restores full-screen chat when documents are closed; header alignment remains an open design question. The rejected implementation was not used as the reference target.
 
 ## What to read
 

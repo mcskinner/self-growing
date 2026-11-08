@@ -13,6 +13,8 @@ These address different questions:
 - A persona can shape collaboration and taste.
 - Permissions and execution boundaries determine what actions are actually possible.
 
+[Pluggable project principles](pluggable-principles.md) are a possible lightweight part of this space: reusable guidance that users can select, customize, or skip entirely. No project should have to adopt the recommended process merely to use the starter.
+
 A persona or mission statement is not an execution sandbox. Treating those as interchangeable would confuse behavioral guidance with security.
 
 ## Personal tool versus public experiment

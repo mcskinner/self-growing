@@ -6,6 +6,7 @@ This is a working wiki, not a plan to build everything below. [Conventions](READ
 
 - [Self-growing software](self-growing-software.md) — embedded agency, one pane of glass, and the persistent need to repair our own tools.
 - [Minimal core and workshop](minimal-core-and-workshop.md) — a small starting point alongside a freely growing tool that helps build the kit.
+- [Pluggable project principles](pluggable-principles.md) — optional reusable guidance, recommended starting sets, and an equally valid unguided path.
 - [Control plane and agency](control-plane-and-agency.md) — whose goals guide growth, how changes are reviewed, and where authority stops.
 
 ## How improvements travel

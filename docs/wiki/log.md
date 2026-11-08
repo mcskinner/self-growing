@@ -41,3 +41,9 @@ The owner rejected the integrated reader's pane orientation, app-header nesting,
 ## [2026-11-08] preview | Fresh combined application ready for owner review
 
 A new session applied revised left-chat and reader descriptions directly to 233ef73 using the original reference, not the rejected reader. Candidate 3177e64 passed functional checks and reference-style comparisons. Put it into the running workshop as [preview 7fb3524](../../adaptations/markdown-reader/integration/fidelity-preview.md), preserving wiki/lab and saved sessions. Reference/candidate captures use public fixtures; browser APIs/chat are mocked. Owner acceptance remains pending. No composition-brief abstraction, control-plane scope, or coordinator runtime-code repair was added.
+
+## [2026-11-08] acceptance and discussion | Optional principles and closed-document refinement
+
+The owner deemed the fidelity preview acceptable, with refinements remaining. The left-chat description had incorrectly required a permanent empty workspace; clarified two modes: full-screen chat when no document is open, chat left/reader right when one is open. This is a local specification correction, not a new failed transfer. The capped, centered header against a full-width layout remains an open design refinement.
+
+Captured [pluggable project principles](pluggable-principles.md): recommended guidance can be selected, customized, removed, or skipped entirely. No control-plane implementation or mandatory process was added. Completed the concrete [chat-mode refinement](../../adaptations/markdown-reader/integration/chat-mode-refinement.md), not a header redesign. Check/test/build and the extended isolated browser regression pass, including desktop/narrow close/reopen, retained composer/draft, and saved split width. The first extended browser test needed a hidden-separator locator correction; both attempt logs were retained locally.

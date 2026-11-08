@@ -1,4 +1,4 @@
-# Fresh fidelity preview — owner acceptance pending
+# Fresh fidelity preview — accepted with refinements
 
 Running-workshop preview commit: 7fb3524. Candidate source: 3177e64, applied from historical workshop 233ef73 with descriptions frozen at d7640c4. Previous rejected implementation remains recoverable in Git; its owner review is [preserved](owner-review.md).
 
@@ -18,4 +18,4 @@ Independent reference comparison: [source desktop](../applications/fidelity-01/r
 
 The folder icon in the shared header opens a document. Existing open-document state is retained where valid. The backend reloads after the agent turn; an interim document-service error may need Retry afterward. No second app server was started.
 
-Please assess actual hierarchy, reading quality, controls, and chat coexistence. Owner approval has NOT occurred; no automated result substitutes for it. Native chooser and live-provider behavior are not independently claimed. Further feedback should be recorded against this preview before another revision or repair.
+The owner judged this preview acceptable, with refinements remaining: closing a document should restore full-screen chat, and header alignment deserves further consideration. Full-screen chat on close has since been corrected locally. Acceptance is an explicit owner decision, not an inference from automated checks. Native chooser and live-provider behavior are not independently claimed. Further feedback should be recorded against this preview before another revision or repair.

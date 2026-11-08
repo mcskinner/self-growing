@@ -51,10 +51,10 @@ function App() {
   }, []);
   if (!state) return <div className="app"><p className="connecting" role="status">Connecting to your workspace…</p></div>;
   // Each conversation owns its draft/outbox closures, even if an old request finishes late.
-  return <div className={`app workspace ${resizing ? 'resizing' : ''}`}
+  return <div className={`app ${documentPath ? 'workspace' : ''} ${resizing ? 'resizing' : ''}`}
     ref={workspace} style={{ '--chat-width': `${chatWidth}px` } as CSSProperties}>
     <Chat key={state.sessionId || 'initial'} state={state} connected={connected} onOpenDocument={openDocument} />
-    <div className="panel-resizer" role="separator" tabIndex={0}
+    {documentPath && <div className="panel-resizer" role="separator" tabIndex={0}
       aria-label="Resize chat panel" aria-orientation="vertical" aria-valuemin={320} aria-valuemax={900} aria-valuenow={chatWidth}
       onDoubleClick={() => resizeChat(480)}
       onPointerDown={event => {
@@ -73,11 +73,9 @@ function App() {
           const current = event.currentTarget.previousElementSibling!.getBoundingClientRect().width;
           resizeChat(event.key === 'Home' ? 320 : event.key === 'End' ? 900 : current + (event.key === 'ArrowRight' ? 1 : -1) * (event.shiftKey ? 80 : 20));
         }
-      }} />
-    {documentPath ? <DocumentView key={documentPath} path={documentPath} busy={state.busy}
-      onClose={() => openDocument('')} onOpen={openDocument} /> : <section className="workspace-empty" aria-label="Workspace">
-      <span className="eyebrow">ROOM TO GROW</span><p>Open a Markdown document to read beside Pi.</p><DocumentPicker onOpen={openDocument} />
-    </section>}
+      }} />}
+    {documentPath && <DocumentView key={documentPath} path={documentPath} busy={state.busy}
+      onClose={() => openDocument('')} onOpen={openDocument} />}
   </div>;
 }
 

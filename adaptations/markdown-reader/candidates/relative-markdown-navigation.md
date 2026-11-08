@@ -1,6 +1,6 @@
 # Candidate: relative Markdown navigation
 
-Status: proposed after first applications and now included in the revised description for the fidelity retry. It remains absent from the frozen first description. A fresh application of the combined revised descriptions (3177e64) now passes relative-link browser checks; the isolated effect of this sentence was not tested, and owner acceptance of the combined preview is pending.
+Status: proposed after first applications and now included in the revised description for the fidelity retry. It remains absent from the frozen first description. A fresh application of the combined revised descriptions (3177e64) now passes relative-link browser checks; the isolated effect of this sentence was not tested, and the owner subsequently accepted the combined preview with refinements.
 
 ## Suggested instruction addition
 

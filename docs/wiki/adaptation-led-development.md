@@ -6,6 +6,8 @@ Status: exploratory user proposal during the Markdown-reader experiment; not an 
 
 The current [adaptation lab](adaptations-and-capability-exchange.md) distills transformations from an initial implementation. An alternative is to write an adaptation first, then apply it as the normal—or only—path for adding features. This makes adaptations a development practice, not merely a way to publish reusable work afterward.
 
+Even if a project chooses to require this workflow internally, adopting it is a separate choice. [Pluggable principles](pluggable-principles.md) should let other users skip the recommended process entirely rather than imposing it through the starter.
+
 An adaptation need not be public. A private record can still explain the intended change, its requirements, how it was applied, and what actually happened. An agent could use that history to reason about the software's capabilities and why they exist, rather than inferring everything from the current code.
 
 ## Migration analogy

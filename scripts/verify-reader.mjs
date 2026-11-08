@@ -53,10 +53,21 @@ async function emit(patch = {}) {
   await page.evaluate(s => { window.testState = s; window.testEvents?.onmessage?.({ data: JSON.stringify(s) }); }, state);
 }
 await page.addInitScript(s => { window.testState = s; }, state);
+async function assertFullScreenChat() {
+  assert.equal(await page.locator('.document-panel').count(), 0);
+  assert.equal(await page.getByRole('separator').count(), 0);
+  assert.equal(await page.locator('.chat-heading').isVisible(), false);
+  const box = await page.locator('.chat-panel').boundingBox();
+  assert(Math.abs(box.width - page.viewportSize().width) <= 1, 'Chat must fill the app width');
+  const composer = await page.getByRole('textbox', { name: 'Message Pi' }).boundingBox();
+  assert(composer.y >= 0 && composer.y + composer.height <= page.viewportSize().height);
+  assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+}
 try {
   await page.goto('https://reader.test/');
   const input = page.getByRole('textbox', { name: 'Message Pi' });
   const open = page.getByRole('button', { name: 'Open document', exact: true }).first();
+  await assertFullScreenChat();
   await input.fill('Keep my draft'); await open.click();
   await page.getByRole('heading', { name: 'Reader fidelity', exact: true }).waitFor();
   assert.equal(await input.inputValue(), 'Keep my draft');
@@ -67,7 +78,7 @@ try {
   assert.equal(await page.evaluate(() => window.ATTACK), undefined);
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await page.getByRole('checkbox', { name: 'Show thinking and tool activity' }).check(); await page.keyboard.press('Escape');
-  const sep = page.getByRole('separator');
+  const sep = page.getByRole('separator', { includeHidden: true });
   const before = await page.locator('.chat-panel').boundingBox();
   await sep.focus(); await page.keyboard.press('ArrowRight');
   assert((await page.locator('.chat-panel').boundingBox()).width > before.width);
@@ -94,12 +105,19 @@ try {
   await page.getByRole('heading', { name: 'Distinct next document' }).waitFor();
   await page.reload(); await page.getByRole('heading', { name: 'Distinct next document' }).waitFor();
   assert(Number(await page.evaluate(() => localStorage.getItem('chat-width'))) > before.width);
+  const splitWidth = await page.evaluate(() => localStorage.getItem('chat-width'));
+  const composerBeforeClose = await input.elementHandle();
   await page.getByRole('button', { name: 'Close document' }).click();
-  assert.equal(await page.locator('.document-panel').count(), 0);
+  await assertFullScreenChat();
+  assert.equal(await input.inputValue(), 'Keep my draft');
+  assert(await input.evaluate((element, original) => element === original, composerBeforeClose));
+  assert.equal(await page.evaluate(() => localStorage.getItem('chat-width')), splitWidth);
+  await page.screenshot({ path: `${artifacts}/closed-desktop.png` });
   selected = '/fixtures/index.md'; fail = true; await open.click();
   await page.getByText('Fixture missing', { exact: false }).waitFor();
   fail = false; await page.getByRole('button', { name: 'Retry', exact: true }).click();
   await page.getByRole('heading', { name: 'Reader fidelity', exact: true }).waitFor();
+  assert.equal(await sep.getAttribute('aria-valuenow'), splitWidth);
   await page.getByRole('button', { name: 'Chats', exact: true }).click();
   await page.getByRole('button', { name: 'Second chat', exact: false }).click();
   await page.getByRole('heading', { name: 'Reader fidelity', exact: true }).waitFor();
@@ -124,7 +142,17 @@ try {
   await page.getByRole('heading', { name: 'Refreshed after work' }).scrollIntoViewIfNeeded();
   assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
   await page.screenshot({ path: `${artifacts}/narrow.png` });
+  await page.getByRole('button', { name: 'Close document' }).click();
+  await assertFullScreenChat();
+  assert.equal(await input.inputValue(), 'Narrow draft');
+  await open.click();
+  await page.getByRole('heading', { name: 'Refreshed after work' }).waitFor();
+  assert.equal(await sep.getAttribute('aria-valuenow'), splitWidth);
+  await page.getByRole('button', { name: 'Close document' }).click();
+  await assertFullScreenChat();
+  assert.equal(await input.inputValue(), 'Narrow draft');
+  await page.screenshot({ path: `${artifacts}/closed-narrow.png` });
   assert.deepEqual(errors, []); assert.deepEqual(unexpected, []);
-  console.log('PASS: open/draft, rendering safety, settings, pointer/keyboard resize, independent scroll, relative link, cancel, reload/width, close, error/retry, switch chat, mocked send/steer/stop/reply/refresh, narrow reachability; no JS errors or external requests.');
+  console.log('PASS: open/draft, rendering safety, settings, pointer/keyboard resize, independent scroll, relative link, cancel, reload/width, full-screen chat initially and after close/reopen on desktop/narrow with preserved composer/draft/width, error/retry, switch chat, mocked send/steer/stop/reply/refresh, narrow reachability; no JS errors or external requests.');
   }
 } finally { await browser.close(); }
