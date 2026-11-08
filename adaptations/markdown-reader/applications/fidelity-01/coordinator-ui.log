@@ -1,0 +1,1 @@
+PASS: open/draft, rendering safety, settings, pointer/keyboard resize, independent scroll, relative link, cancel, reload/width, close, error/retry, switch chat, mocked send/steer/stop/reply/refresh, narrow reachability; no JS errors or external requests.

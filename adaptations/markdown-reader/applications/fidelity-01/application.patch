@@ -1,0 +1,639 @@
+diff --git a/backend/app.py b/backend/app.py
+index a6058a8..d1004fe 100644
+--- a/backend/app.py
++++ b/backend/app.py
+@@ -10,6 +10,7 @@ from fastapi.responses import StreamingResponse
+ from pydantic import BaseModel, Field
+ from starlette.middleware.trustedhost import TrustedHostMiddleware
+ 
++from backend.documents import router as documents_router
+ from backend.history import saved_sessions, session_file, title
+ from backend.pi import connect, select_session
+ 
+@@ -223,6 +224,7 @@ async def lifespan(app):
+ 
+ 
+ app = FastAPI(lifespan=lifespan)
++app.include_router(documents_router)
+ app.add_middleware(TrustedHostMiddleware, allowed_hosts=["localhost", "127.0.0.1", "testserver"])
+ 
+ 
+diff --git a/backend/documents.py b/backend/documents.py
+new file mode 100644
+index 0000000..4910a73
+--- /dev/null
++++ b/backend/documents.py
+@@ -0,0 +1,97 @@
++"""Read original Markdown files without imports, metadata, or document writes."""
++
++import asyncio
++import sys
++from pathlib import Path
++from urllib.parse import unquote, urlsplit
++
++from fastapi import APIRouter, HTTPException
++
++router = APIRouter(prefix="/api/documents")
++ROOT = Path(__file__).resolve().parents[1]
++MAX_BYTES = 2_000_000
++
++
++def document_path(path: str) -> Path:
++    try:
++        supplied = Path(path)
++        target = (ROOT / supplied).resolve()
++        if not supplied.is_absolute() and not target.is_relative_to(ROOT.resolve()):
++            raise HTTPException(404, "Markdown document not found")
++        if target.suffix.lower() not in {".md", ".markdown"} or not target.is_file():
++            raise HTTPException(404, "Markdown document not found")
++        return target
++    except (OSError, ValueError, RuntimeError):
++        raise HTTPException(404, "Markdown document not found") from None
++
++
++def read_document(target: Path):
++    try:
++        with target.open("rb") as file:
++            data = file.read(MAX_BYTES + 1)
++        if len(data) > MAX_BYTES:
++            raise HTTPException(413, "Document is too large (maximum 2 MB)")
++        return {"path": str(target), "content": data.decode("utf-8")}
++    except UnicodeDecodeError:
++        raise HTTPException(422, "Document is not UTF-8 text") from None
++    except OSError:
++        raise HTTPException(404, "Cannot read Markdown document") from None
++
++
++async def choose_markdown_file():
++    if sys.platform != "darwin":
++        raise HTTPException(501, "The native file chooser currently supports macOS only")
++    script = """try
++        set picked to choose file with prompt "Open Markdown" of type {"md", "markdown"}
++        return POSIX path of picked
++    on error number -128
++        return ""
++    end try"""
++    process = await asyncio.create_subprocess_exec(
++        "/usr/bin/osascript",
++        "-e",
++        script,
++        stdout=asyncio.subprocess.PIPE,
++        stderr=asyncio.subprocess.PIPE,
++    )
++    try:
++        async with asyncio.timeout(300):
++            stdout, stderr = await process.communicate()
++    except TimeoutError:
++        raise HTTPException(504, "File chooser timed out; please retry") from None
++    finally:
++        if process.returncode is None:
++            process.kill()
++            await process.wait()
++    if process.returncode:
++        raise HTTPException(500, f"Could not open file chooser: {stderr.decode().strip()}")
++    return stdout.decode().rstrip("\r\n")
++
++
++@router.post("/pick")
++async def pick_document():
++    selected = await choose_markdown_file()
++    if not selected:
++        return {"path": None}
++    return {"path": read_document(document_path(selected))["path"]}
++
++
++@router.get("/content")
++async def get_document(path: str):
++    return read_document(document_path(path))
++
++
++@router.get("/resolve")
++async def resolve_document(path: str, link: str):
++    try:
++        url = urlsplit(link)
++        if url.scheme or url.netloc or not url.path:
++            raise ValueError
++        current = document_path(path)
++        relative = Path(unquote(url.path))
++        target = (current.parent / relative).resolve()
++        if not Path(path).is_absolute() and not target.is_relative_to(ROOT.resolve()):
++            raise ValueError
++    except (ValueError, OSError, RuntimeError):
++        raise HTTPException(422, "Invalid document link") from None
++    return {"path": read_document(document_path(str(target)))["path"]}
+diff --git a/docs/wiki/log.md b/docs/wiki/log.md
+index a8a6150..87e3d75 100644
+--- a/docs/wiki/log.md
++++ b/docs/wiki/log.md
+@@ -15,3 +15,7 @@ Reviewed the initial pages for conceptual consistency and linked evidence. Kept
+ No claim of successful independent transfer or implemented federated service is supported by the current smoke trial. Preserved open tensions: minimal core versus usability, short instructions versus sufficient guidance, private evidence versus verifiability, and collective learning versus automatic reporting. These are questions to investigate, not contradictions to resolve automatically.
+ 
+ Added a small mechanical lint for local link targets and index coverage, included in `make check`. It does not check external URLs, anchors, or semantic truth. Semantic lint remains a review activity governed by the [wiki conventions](README.md).
++
++## [2026-11-08] application review | Left chat and read-only Markdown reader
++
++Applied both adaptations to the historical workshop baseline using `markdown-comments` at `898db55` directly, excluding annotations. The combined shell retains the reference typography, surfaces, and icon controls. Filesystem tests check original-file reads, relative-path/symlink boundaries, UTF-8, size, and non-modification. The isolated browser recipe in `scripts/verify-reader.mjs` simulates all APIs and chat events; it is not evidence of native-dialog or live-provider behavior. Same-fixture desktop and narrow captures were compared against a temporary reference build with comment UI hidden. Functional checks and preliminary visual comparison passed; owner visual acceptance remains pending. This supports the [adaptation evidence distinction](adaptations-and-capability-exchange.md), not a claim of completed owner acceptance.
+diff --git a/frontend/documents.tsx b/frontend/documents.tsx
+new file mode 100644
+index 0000000..102aa74
+--- /dev/null
++++ b/frontend/documents.tsx
+@@ -0,0 +1,90 @@
++import { useEffect, useMemo, useState } from 'react';
++import DOMPurify from 'dompurify';
++import { marked } from 'marked';
++
++async function request<T>(url: string, init?: RequestInit): Promise<T> {
++  const response = await fetch(url, init);
++  if (!response.ok) throw new Error((await response.json()).detail || 'Request failed');
++  return response.json();
++}
++
++export function DocumentPicker({ onOpen }: { onOpen: (path: string) => void }) {
++  const [opening, setOpening] = useState(false);
++  const [error, setError] = useState('');
++  async function open() {
++    setOpening(true); setError('');
++    try {
++      const result = await request<{ path: string | null }>('/api/documents/pick', { method: 'POST' });
++      if (result.path) onOpen(result.path);
++    } catch (err) { setError(String(err)); }
++    finally { setOpening(false); }
++  }
++  return <div className="document-picker">
++    <button className="icon-button" disabled={opening} aria-label="Open document" title={opening ? 'Choosing document…' : 'Open document'}
++      aria-busy={opening} onClick={() => void open()}>
++      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"
++        strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
++        <path d="M20 20H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2Z" />
++      </svg>
++    </button>
++    {error && <span className="error" role="alert">{error} <button className="quiet-button" onClick={() => void open()}>Retry</button></span>}
++  </div>;
++}
++
++interface Document { path: string; content: string }
++
++export function DocumentView({ path, busy, onClose, onOpen }: {
++  path: string; busy: boolean; onClose: () => void; onOpen: (path: string) => void;
++}) {
++  const [doc, setDoc] = useState<Document | null>(null);
++  const [error, setError] = useState('');
++  const [loading, setLoading] = useState(true);
++  const [loadAttempt, setLoadAttempt] = useState(0);
++  useEffect(() => {
++    const controller = new AbortController();
++    setLoading(true); setError('');
++    request<Document>(`/api/documents/content?path=${encodeURIComponent(path)}`, { signal: controller.signal }).then(data => {
++      if (!controller.signal.aborted) setDoc(data);
++    }).catch(err => {
++      if (!controller.signal.aborted) setError(err instanceof Error ? err.message : String(err));
++    }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
++    return () => controller.abort();
++  }, [path, busy, loadAttempt]);
++  const html = useMemo(() => DOMPurify.sanitize(marked.parse(doc?.content || '', { async: false }), {
++    ALLOWED_TAGS: ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'br', 'hr', 'ul', 'ol', 'li', 'blockquote',
++      'pre', 'code', 'em', 'strong', 'del', 's', 'a', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'sup', 'sub'],
++    ALLOWED_ATTR: ['href', 'title', 'start', 'colspan', 'rowspan', 'align', 'id'],
++  }), [doc?.content]);
++
++  async function followLink(href: string) {
++    try {
++      setError('');
++      const result = await request<{ path: string }>(`/api/documents/resolve?path=${encodeURIComponent(doc?.path || path)}&link=${encodeURIComponent(href)}`);
++      onOpen(result.path);
++    } catch (err) { setError(err instanceof Error ? err.message : String(err)); }
++  }
++
++  return <section className="document-panel" aria-label="Markdown reader">
++    <div className="document-toolbar"><div><span className="eyebrow">DOCUMENT</span><strong title={doc?.path || path}>{doc?.path || path}</strong></div>
++      <button className="icon-button" onClick={onClose} aria-label="Close document" title="Close document">
++        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"
++          strokeLinecap="round" aria-hidden="true" focusable="false"><path d="m6 6 12 12M18 6 6 18" /></svg>
++      </button></div>
++    <div className="document-scroll" aria-busy={loading}>
++      {loading && <p role="status">Loading document…</p>}
++      {error && <div className="error" role="alert">{error} <button className="quiet-button" disabled={loading}
++        onClick={() => setLoadAttempt(attempt => attempt + 1)}>Retry</button></div>}
++      {doc && <article className="markdown-document" dangerouslySetInnerHTML={{ __html: html }} onClick={event => {
++        const link = (event.target as HTMLElement).closest('a');
++        if (!link) return;
++        const href = link.getAttribute('href') || '';
++        event.preventDefault();
++        if (href.startsWith('#')) {
++          try { event.currentTarget.querySelector(`#${CSS.escape(decodeURIComponent(href.slice(1)))}`)?.scrollIntoView({ block: 'nearest' }); } catch { /* Invalid fragment. */ }
++        } else if (!/^[a-z][a-z\d+.-]*:|^\/\//i.test(href) && /\.(md|markdown)(?:[?#]|$)/i.test(href)) {
++          void followLink(href);
++        } else if (/^https?:\/\//i.test(href)) window.open(href, '_blank', 'noopener,noreferrer');
++      }} />}
++    </div>
++  </section>;
++}
+diff --git a/frontend/main.tsx b/frontend/main.tsx
+index 883fcf9..838db29 100644
+--- a/frontend/main.tsx
++++ b/frontend/main.tsx
+@@ -1,4 +1,4 @@
+-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
++import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
+ import { createRoot } from 'react-dom/client';
+ import type { Transcript, Message } from './transcript';
+ import { ChatDisplay } from './chat-display';
+@@ -9,6 +9,8 @@ import { useMessageQueue } from './message-queue';
+ import { composerError } from './chat-errors';
+ import './transcript';
+ import './style.css';
++import './reader.css';
++import { DocumentPicker, DocumentView } from './documents';
+ 
+ interface State {
+   messages: Message[]; busy: boolean; error: string | null; activity: string;
+@@ -18,6 +20,25 @@ interface State {
+ function App() {
+   const [state, setState] = useState<State | null>(null);
+   const [connected, setConnected] = useState(false);
++  const [documentPath, setDocumentPath] = useState(() => sessionStorage.getItem('open-document') || '');
++  const [chatWidth, setChatWidth] = useState(() => {
++    const saved = Number(localStorage.getItem('chat-width'));
++    return Number.isFinite(saved) && saved >= 320 ? Math.min(saved, 900) : 480;
++  });
++  const [resizing, setResizing] = useState(false);
++  const workspace = useRef<HTMLDivElement>(null);
++  const drag = useRef<{ x: number; width: number } | null>(null);
++  function openDocument(path: string) {
++    if (path) sessionStorage.setItem('open-document', path);
++    else sessionStorage.removeItem('open-document');
++    setDocumentPath(path);
++  }
++  useEffect(() => { localStorage.setItem('chat-width', String(chatWidth)); }, [chatWidth]);
++  function resizeChat(width: number) {
++    const available = workspace.current?.clientWidth || window.innerWidth;
++    const reserved = window.innerWidth > 1000 ? 393 : 369;
++    setChatWidth(Math.round(Math.max(320, Math.min(width, 900, available - reserved))));
++  }
+   useEffect(() => {
+     const events = new EventSource('/api/events');
+     events.onmessage = event => {
+@@ -30,10 +51,39 @@ function App() {
+   }, []);
+   if (!state) return <div className="app"><p className="connecting" role="status">Connecting to your workspace…</p></div>;
+   // Each conversation owns its draft/outbox closures, even if an old request finishes late.
+-  return <Chat key={state.sessionId || 'initial'} state={state} connected={connected} />;
++  return <div className={`app workspace ${resizing ? 'resizing' : ''}`}
++    ref={workspace} style={{ '--chat-width': `${chatWidth}px` } as CSSProperties}>
++    <Chat key={state.sessionId || 'initial'} state={state} connected={connected} onOpenDocument={openDocument} />
++    <div className="panel-resizer" role="separator" tabIndex={0}
++      aria-label="Resize chat panel" aria-orientation="vertical" aria-valuemin={320} aria-valuemax={900} aria-valuenow={chatWidth}
++      onDoubleClick={() => resizeChat(480)}
++      onPointerDown={event => {
++        if (event.button !== 0) return;
++        event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId);
++        drag.current = { x: event.clientX, width: event.currentTarget.previousElementSibling!.getBoundingClientRect().width };
++        setResizing(true);
++      }} onPointerMove={event => {
++        if (drag.current) resizeChat(drag.current.width + event.clientX - drag.current.x);
++      }} onPointerUp={event => {
++        drag.current = null; setResizing(false); event.currentTarget.releasePointerCapture(event.pointerId);
++      }} onLostPointerCapture={() => { drag.current = null; setResizing(false); }}
++      onKeyDown={event => {
++        if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
++          event.preventDefault();
++          const current = event.currentTarget.previousElementSibling!.getBoundingClientRect().width;
++          resizeChat(event.key === 'Home' ? 320 : event.key === 'End' ? 900 : current + (event.key === 'ArrowRight' ? 1 : -1) * (event.shiftKey ? 80 : 20));
++        }
++      }} />
++    {documentPath ? <DocumentView key={documentPath} path={documentPath} busy={state.busy}
++      onClose={() => openDocument('')} onOpen={openDocument} /> : <section className="workspace-empty" aria-label="Workspace">
++      <span className="eyebrow">ROOM TO GROW</span><p>Open a Markdown document to read beside Pi.</p><DocumentPicker onOpen={openDocument} />
++    </section>}
++  </div>;
+ }
+ 
+-function Chat({ state, connected }: { state: State; connected: boolean }) {
++function Chat({ state, connected, onOpenDocument }: {
++  state: State; connected: boolean; onOpenDocument: (path: string) => void;
++}) {
+   const draftKey = chatKey(state.sessionId, 'draft');
+   const cursorKey = chatKey(state.sessionId, 'draft-cursor');
+   const [showDetails, setShowDetails] = useState(() => localStorage.getItem('show-chat-details') === 'true');
+@@ -144,7 +194,7 @@ function Chat({ state, connected }: { state: State; connected: boolean }) {
+ 
+   const visibleError = error || messages.error || composerError(state.error, state.messages, state.busy);
+ 
+-  return <div className="app">
++  return <>
+     <header>
+       <div className="header-start">
+         <button className="icon-button" onClick={() => setHistoryOpen(true)} aria-label="Chats" title="Chats"
+@@ -159,11 +209,14 @@ function Chat({ state, connected }: { state: State; connected: boolean }) {
+       <a className="brand" href="/" aria-label="Self-growing home"><span className="seed" aria-hidden="true">✳</span><span className="brand-name">self-growing</span></a>
+       <div className="header-actions">
+         <span className="connection" title="Connection to the local chat backend"><i className={connected ? 'online' : ''} />{connected ? 'Connected' : 'Reconnecting…'}</span>
++        <DocumentPicker onOpen={onOpenDocument} />
+         <ChatDisplay showDetails={showDetails} onChange={setShowDetails} />
+       </div>
+     </header>
+     <ChatHistory open={historyOpen} currentId={state.sessionId} blocked={switchingBlocked} switching={startingSession}
+       onClose={() => setHistoryOpen(false)} onSelect={id => void changeChat(id)} onNew={() => void changeChat()} />
++    <section className="chat-panel" aria-label="Pi chat">
++      <div className="chat-heading"><span className="seed" aria-hidden="true">✳</span> Pi <span>Your design partner</span></div>
+     <main ref={scroller}
+       onWheelCapture={event => { if (event.deltaY < 0) follow.current = false; }}
+       onTouchMoveCapture={() => { follow.current = false; }}
+@@ -219,7 +272,8 @@ function Chat({ state, connected }: { state: State; connected: boolean }) {
+       </form>
+       <div className="footnote"><span>Pi can edit files and run commands in this workspace.</span><span>Enter to {state.busy ? 'steer' : 'send'} · Shift + Enter for a new line</span></div>
+     </footer>
+-  </div>;
++    </section>
++  </>;
+ }
+ 
+ createRoot(document.getElementById('root')!).render(<App />);
+diff --git a/frontend/reader.css b/frontend/reader.css
+new file mode 100644
+index 0000000..55b7784
+--- /dev/null
++++ b/frontend/reader.css
+@@ -0,0 +1,53 @@
++.app.workspace { display: grid; grid-template-columns: clamp(320px, var(--chat-width, 480px), calc(100% - 393px)) 9px minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
++.workspace > header { grid-column: 1 / -1; grid-row: 1; }
++.chat-panel { grid-column: 1; grid-row: 2; min-height: 0; min-width: 0; display: flex; flex-direction: column; }
++.document-picker { position: relative; flex-shrink: 0; display: flex; align-items: center; }
++.document-picker .error { position: absolute; right: 0; top: calc(100% + 8px); z-index: 20; width: max-content; max-width: min(320px, calc(100vw - 32px)); margin: 0; padding: 12px; font-size: 12px; background: #fffefa; border: 1px solid #dce1d3; border-radius: 8px; }
++.panel-resizer { grid-column: 2; grid-row: 2; cursor: col-resize; touch-action: none; position: relative; outline-offset: -2px; }
++.panel-resizer::after { content: ''; position: absolute; top: 0; bottom: 0; left: 4px; width: 1px; background: #e0e2d8; }
++.panel-resizer:hover::after, .panel-resizer:focus-visible::after, .resizing .panel-resizer::after { width: 3px; left: 3px; background: #9cae8c; }
++.panel-resizer:focus-visible { outline: 2px solid #6f8859; }
++.resizing { cursor: col-resize; user-select: none; }
++.chat-heading { display: flex; gap: 10px; align-items: center; padding: 16px 24px; font-size: 14px; border-bottom: 1px solid #e6e7de; }
++.chat-heading .seed { position: static; transform: none; font-size: 22px; }
++.chat-heading > span:last-child { color: #929889; margin-left: auto; font-size: 11px; }
++.workspace .conversation { padding: 24px 20px; }
++.workspace footer { width: calc(100% - 32px); padding-bottom: 16px; }
++.workspace .footnote span:last-child { display: none; }
++.workspace .welcome { padding-top: 40px; }
++.workspace .welcome h1 { font-size: 30px; }
++.document-panel { grid-column: 3; grid-row: 2; min-height: 0; min-width: 0; display: flex; flex-direction: column; margin-right: 24px; }
++.document-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 28px; border-bottom: 1px solid #e6e7de; }
++.document-toolbar > div { min-width: 0; }
++.document-toolbar .eyebrow { display: block; font-size: 10px; margin-bottom: 6px; }
++.document-toolbar strong { display: block; font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
++.document-scroll { overflow: auto; flex: 1; min-height: 0; padding: 28px 24px 60px; }
++.markdown-document { min-width: 0; margin: 0; padding: 0 12px; font-size: 15px; line-height: 1.85; overflow-wrap: anywhere; }
++.markdown-document h1 { font-size: 36px; line-height: 1.25; }
++.markdown-document h2, .markdown-document h3 { line-height: 1.4; margin-top: 32px; letter-spacing: -.025em; }
++.markdown-document h2 { font-size: 24px; }
++.markdown-document h3 { font-size: 19px; }
++.markdown-document a { color: #516f42; text-underline-offset: 3px; }
++.markdown-document pre { overflow-x: auto; padding: 20px; background: #eeeee7; border-radius: 8px; line-height: 1.6; }
++.markdown-document code { font-size: .86em; background: #eeeee7; padding: 2px 4px; border-radius: 3px; }
++.markdown-document pre code { padding: 0; }
++.markdown-document table { display: block; border-collapse: collapse; overflow-x: auto; }
++.markdown-document th, .markdown-document td { border: 1px solid #dcdfd2; padding: 8px 12px; }
++.markdown-document blockquote { margin: 12px 0; padding-left: 16px; border-left: 2px solid #abb99e; color: #747e6c; white-space: pre-wrap; }
++.markdown-document hr { border: 0; border-top: 1px solid #dcdfd2; margin: 32px 0; }
++.workspace-empty { grid-column: 3; grid-row: 2; padding: 48px 36px; color: #858b7e; font-size: 14px; }
++.workspace-empty .eyebrow { font-size: 10px; }
++@media (max-width: 1000px) {
++  .app.workspace { grid-template-columns: clamp(320px, var(--chat-width, 480px), calc(100% - 369px)) 9px minmax(0, 1fr); }
++  .document-panel { margin-right: 0; }
++  .document-scroll { padding: 24px 16px 48px; }
++}
++@media (max-width: 760px) {
++  .app.workspace { display: flex; flex-direction: column; overflow-y: auto; }
++  .panel-resizer { display: none; }
++  .document-panel { flex: none; }
++  .document-scroll { overflow: auto; max-height: 85dvh; flex: none; }
++  .chat-panel { flex: none; min-height: 65dvh; border-bottom: 1px solid #dcdfd2; }
++  .chat-panel main { max-height: 55dvh; flex: auto; }
++  .document-toolbar { padding: 16px 20px; }
++}
+diff --git a/scripts/verify-reader.mjs b/scripts/verify-reader.mjs
+new file mode 100644
+index 0000000..50ae9d3
+--- /dev/null
++++ b/scripts/verify-reader.mjs
+@@ -0,0 +1,130 @@
++// Isolated compiled UI: every request is fulfilled locally, no server or provider.
++// npm install --prefix /tmp/reader-fidelity-ui playwright
++// node scripts/verify-reader.mjs [dist directory] [artifact directory]
++import { chromium } from '/tmp/reader-fidelity-ui/node_modules/playwright/index.mjs';
++import { readFile, mkdir } from 'node:fs/promises';
++import path from 'node:path';
++import assert from 'node:assert/strict';
++const build = path.resolve(process.argv[2] || 'dist');
++const artifacts = process.argv[3] || '/tmp/reader-fidelity-ui/artifacts';
++await mkdir(artifacts, { recursive: true });
++const browser = await chromium.launch({ executablePath: process.env.CHROMIUM || `${process.env.HOME}/Library/Caches/ms-playwright/chromium-1140/chrome-mac/Chromium.app/Contents/MacOS/Chromium`, headless: true });
++const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
++const page = await context.newPage();
++const errors = [], unexpected = [], sent = [];
++page.on('pageerror', e => errors.push(String(e)));
++const fixture = '# Reader fidelity\n\nA comfortable paragraph with **strong text**, *emphasis*, and a [next document](next.md).\n\n## Details\n\n- First item\n- Second item\n\n> A quiet quotation.\n\n| Name | Value |\n| --- | --- |\n| Alpha | Beta |\n\n```ts\n' + 'const wide = "' + 'x'.repeat(300) + '";\n```\n\n<script>window.ATTACK=true</script>\n<img src="https://evil.invalid/attack.png">\n\n' + 'More readable content.\n\n'.repeat(90);
++let selected = '/fixtures/index.md', fail = false, changed = false;
++let state = { messages: [], busy: false, error: null, activity: '', steering: [], context: null, sessionId: 'one' };
++await page.addInitScript(() => {
++  window.EventSource = class {
++    constructor() { window.testEvents = this; setTimeout(() => this.onmessage?.({ data: JSON.stringify(window.testState) }), 0); }
++    close() {}
++  };
++});
++await page.route('**/*', async route => {
++  const url = new URL(route.request().url());
++  if (url.hostname !== 'reader.test') { unexpected.push(url.href); return route.abort(); }
++  const json = body => route.fulfill({ contentType: 'application/json', body: JSON.stringify(body) });
++  if (url.pathname === '/api/documents/pick') return json({ path: selected });
++  if (url.pathname === '/api/documents/resolve') {
++    assert.equal(url.searchParams.get('link'), 'next.md');
++    return json({ path: '/fixtures/next.md' });
++  }
++  if (url.pathname === '/api/documents/content') {
++    if (fail) return route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ detail: 'Fixture missing' }) });
++    const p = url.searchParams.get('path');
++    return json({ path: p, content: p.endsWith('next.md') ? '# Distinct next document' : changed ? '# Refreshed after work' : fixture, comments: [], storage: 'embedded' });
++  }
++  if (url.pathname === '/api/chat') { sent.push(route.request().postDataJSON()); return json({ disposition: 'started' }); }
++  if (url.pathname === '/api/stop') return json({ steering: [], followUp: [] });
++  if (url.pathname === '/api/sessions') return json({ sessions: [{ id: 'one', title: 'First chat' }, { id: 'two', title: 'Second chat' }], currentSessionId: state.sessionId });
++  if (url.pathname === '/api/session/switch' || url.pathname === '/api/session/new') {
++    state = { ...state, sessionId: url.pathname.endsWith('new') ? 'three' : 'two', messages: [] };
++    await emit(); return json(state);
++  }
++  if (url.pathname.startsWith('/api/')) throw new Error(`Unexpected API: ${url.pathname}`);
++  const name = url.pathname === '/' ? 'index.html' : url.pathname.slice(1);
++  const body = await readFile(path.join(build, name));
++  return route.fulfill({ body, contentType: name.endsWith('.js') ? 'text/javascript' : name.endsWith('.css') ? 'text/css' : 'text/html' });
++});
++async function emit(patch = {}) {
++  state = { ...state, ...patch };
++  await page.evaluate(s => { window.testState = s; window.testEvents?.onmessage?.({ data: JSON.stringify(s) }); }, state);
++}
++await page.addInitScript(s => { window.testState = s; }, state);
++try {
++  await page.goto('https://reader.test/');
++  const input = page.getByRole('textbox', { name: 'Message Pi' });
++  const open = page.getByRole('button', { name: 'Open document', exact: true }).first();
++  await input.fill('Keep my draft'); await open.click();
++  await page.getByRole('heading', { name: 'Reader fidelity', exact: true }).waitFor();
++  assert.equal(await input.inputValue(), 'Keep my draft');
++  assert.equal(await page.locator('.markdown-document table').count(), 1);
++  assert(await page.locator('.markdown-document pre').evaluate(e => e.scrollWidth > e.clientWidth));
++  assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
++  assert.equal(await page.locator('.markdown-document img, .markdown-document script').count(), 0);
++  assert.equal(await page.evaluate(() => window.ATTACK), undefined);
++  await page.getByRole('button', { name: 'Settings', exact: true }).click();
++  await page.getByRole('checkbox', { name: 'Show thinking and tool activity' }).check(); await page.keyboard.press('Escape');
++  const sep = page.getByRole('separator');
++  const before = await page.locator('.chat-panel').boundingBox();
++  await sep.focus(); await page.keyboard.press('ArrowRight');
++  assert((await page.locator('.chat-panel').boundingBox()).width > before.width);
++  const box = await sep.boundingBox();
++  await page.mouse.move(box.x + 4, box.y + 100); await page.mouse.down(); await page.mouse.move(box.x + 64, box.y + 100); await page.mouse.up();
++  assert((await page.locator('.chat-panel').boundingBox()).width > before.width + 20);
++  const chatScroll = await page.locator('.chat-panel main').evaluate(e => e.scrollTop);
++  await page.locator('.document-scroll').evaluate(e => { e.scrollTop = 500; });
++  assert.equal(await page.locator('.chat-panel main').evaluate(e => e.scrollTop), chatScroll);
++  await page.locator('.document-scroll').evaluate(e => { e.scrollTop = 0; });
++  if (process.env.REFERENCE) await page.addStyleTag({ content: '.annotation-toolbar,.annotation-rail { display:none } .annotation-canvas { display:block; min-width:0 }' });
++  await page.screenshot({ path: `${artifacts}/desktop.png` });
++  if (process.env.CAPTURE_ONLY) {
++    await page.setViewportSize({ width: 390, height: 844 });
++    await page.getByRole('heading', { name: 'Reader fidelity', exact: true }).scrollIntoViewIfNeeded();
++    await page.screenshot({ path: `${artifacts}/narrow.png` });
++    console.log('Captured same fixture and pane width at desktop/narrow viewports.');
++    process.exitCode = 0;
++  } else {
++  await page.getByRole('link', { name: 'next document' }).click();
++  await page.getByRole('heading', { name: 'Distinct next document' }).waitFor();
++  assert.equal(await input.inputValue(), 'Keep my draft');
++  selected = null; await open.click();
++  await page.getByRole('heading', { name: 'Distinct next document' }).waitFor();
++  await page.reload(); await page.getByRole('heading', { name: 'Distinct next document' }).waitFor();
++  assert(Number(await page.evaluate(() => localStorage.getItem('chat-width'))) > before.width);
++  await page.getByRole('button', { name: 'Close document' }).click();
++  assert.equal(await page.locator('.document-panel').count(), 0);
++  selected = '/fixtures/index.md'; fail = true; await open.click();
++  await page.getByText('Fixture missing', { exact: false }).waitFor();
++  fail = false; await page.getByRole('button', { name: 'Retry', exact: true }).click();
++  await page.getByRole('heading', { name: 'Reader fidelity', exact: true }).waitFor();
++  await page.getByRole('button', { name: 'Chats', exact: true }).click();
++  await page.getByRole('button', { name: 'Second chat', exact: false }).click();
++  await page.getByRole('heading', { name: 'Reader fidelity', exact: true }).waitFor();
++  await input.fill('Hello simulated Pi'); await page.getByRole('button', { name: 'Send message' }).click();
++  await page.waitForTimeout(150); assert.equal(sent.at(-1).message, 'Hello simulated Pi');
++  await emit({ busy: true });
++  await input.fill('Steer simulated Pi'); await page.getByRole('button', { name: 'Steer Pi', exact: true }).click();
++  await page.waitForTimeout(150); assert.equal(sent.at(-1).message, 'Steer simulated Pi');
++  await page.getByRole('button', { name: 'Stop Pi and pause unsent messages' }).click();
++  changed = true; await emit({ busy: false, messages: [{ role: 'assistant', content: [{ type: 'text', text: 'Simulated reply' }] }] });
++  await page.getByRole('heading', { name: 'Refreshed after work' }).waitFor();
++  await page.getByText('Simulated reply', { exact: true }).waitFor();
++  page.once('dialog', dialog => dialog.accept());
++  await page.getByRole('button', { name: 'New chat', exact: true }).click();
++  await page.waitForTimeout(100);
++  assert.equal(state.sessionId, 'three');
++  await page.getByRole('heading', { name: 'Refreshed after work' }).waitFor();
++  await page.setViewportSize({ width: 390, height: 844 });
++  await input.scrollIntoViewIfNeeded(); await input.fill('Narrow draft');
++  await page.getByRole('button', { name: 'Settings', exact: true }).scrollIntoViewIfNeeded();
++  await page.getByRole('button', { name: 'Settings', exact: true }).click(); await page.getByRole('checkbox').uncheck(); await page.keyboard.press('Escape');
++  await page.getByRole('heading', { name: 'Refreshed after work' }).scrollIntoViewIfNeeded();
++  assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
++  await page.screenshot({ path: `${artifacts}/narrow.png` });
++  assert.deepEqual(errors, []); assert.deepEqual(unexpected, []);
++  console.log('PASS: open/draft, rendering safety, settings, pointer/keyboard resize, independent scroll, relative link, cancel, reload/width, close, error/retry, switch chat, mocked send/steer/stop/reply/refresh, narrow reachability; no JS errors or external requests.');
++  }
++} finally { await browser.close(); }
+diff --git a/tests/test_documents.py b/tests/test_documents.py
+new file mode 100644
+index 0000000..2fec4a3
+--- /dev/null
++++ b/tests/test_documents.py
+@@ -0,0 +1,86 @@
++import asyncio
++from pathlib import Path
++
++import pytest
++from fastapi import HTTPException
++from fastapi.testclient import TestClient
++
++from backend import documents
++from backend.app import app
++
++
++@pytest.fixture
++def files(tmp_path, monkeypatch):
++    root = tmp_path / "workspace"
++    root.mkdir()
++    monkeypatch.setattr(documents, "ROOT", root)
++    (root / "index.md").write_text("# Index\n[next](next.markdown)")
++    (root / "next.markdown").write_text("# Next")
++    outside = tmp_path / "outside.md"
++    outside.write_text("# Outside")
++    return root, outside
++
++
++def test_read_and_links_are_read_only(files):
++    root, outside = files
++    client = TestClient(app)  # No lifespan: never connects to Pi.
++    before = {p: p.read_bytes() for p in root.parent.rglob("*") if p.is_file()}
++    assert (
++        client.get("/api/documents/content", params={"path": "index.md"})
++        .json()["content"]
++        .startswith("# Index")
++    )
++    result = client.get(
++        "/api/documents/resolve", params={"path": "index.md", "link": "next.markdown#part"}
++    )
++    assert result.json()["path"] == str(root / "next.markdown")
++    assert client.get("/api/documents/content", params={"path": str(outside)}).status_code == 200
++    assert before == {p: p.read_bytes() for p in root.parent.rglob("*") if p.is_file()}
++    assert client.post("/api/documents/comments").status_code == 404
++
++
++def test_invalid_documents(files):
++    root, outside = files
++    (root / "escape.md").symlink_to(outside)
++    (root / "binary.md").write_bytes(b"\xff")
++    (root / "large.md").write_bytes(b"x" * (documents.MAX_BYTES + 1))
++    (root / "wrong.txt").write_text("hello")
++    client = TestClient(app)
++    for path, status in [
++        ("../outside.md", 404),
++        ("escape.md", 404),
++        ("binary.md", 422),
++        ("large.md", 413),
++        ("wrong.txt", 404),
++        ("missing.md", 404),
++    ]:
++        assert client.get("/api/documents/content", params={"path": path}).status_code == status
++    for link in ["https://example.com/x.md", "../outside.md", "//example.com/x.md"]:
++        assert (
++            client.get(
++                "/api/documents/resolve", params={"path": "index.md", "link": link}
++            ).status_code
++            == 422
++        )
++
++
++def test_picker_cancel_and_outside(files, monkeypatch):
++    _, outside = files
++
++    async def cancel():
++        return ""
++
++    monkeypatch.setattr(documents, "choose_markdown_file", cancel)
++    assert asyncio.run(documents.pick_document()) == {"path": None}
++
++    async def select():
++        return str(outside)
++
++    monkeypatch.setattr(documents, "choose_markdown_file", select)
++    assert asyncio.run(documents.pick_document()) == {"path": str(outside)}
++
++
++def test_bad_path(files):
++    with pytest.raises(HTTPException):
++        documents.document_path("bad\0.md")
++    assert isinstance(documents.ROOT, Path)

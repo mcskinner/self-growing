@@ -1,0 +1,18 @@
+{
+  "candidate": "3177e64e173ee9a8e6a9da4f84492574986817a9",
+  "reference": "898db55",
+  "checks": {
+    "shared_app_header": true,
+    "chat_left_reader_right": true,
+    "reference_paragraph_styles": true,
+    "reference_link_styles": true,
+    "reference_inlineCode_styles": true,
+    "reference_blockCode_styles": true,
+    "reference_pre_styles": true,
+    "reference_body_styles": true,
+    "reference_icon_controls": true,
+    "narrow_no_horizontal_overflow": true,
+    "no_page_errors": true
+  },
+  "owner_acceptance": "pending; computed styles and agent visual inspection are not owner approval"
+}

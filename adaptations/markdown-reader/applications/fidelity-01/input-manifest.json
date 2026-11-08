@@ -1,0 +1,14 @@
+{
+  "base": "233ef7356949902b318c561f809503e5198da9a6",
+  "reference": "898db55839fad721fd9d5d6158e8c93440ac6323",
+  "description_commit": "d7640c4",
+  "note": "Existing prepare snapshots the reader only; extra input files copied manually without changing tooling.",
+  "sha256": {
+    "reference.patch": "b01693184a66207b19fdc0b17f3e48f5cd5bb7ce3beee10c5433cc702e14d407",
+    "evidence.md": "0659154af8f6abe492912c1e5009e12e4a6e392ed51863be09535cfc3ac4386f",
+    "adaptation.md": "af34fe143500dbebca8766ad185c42eb993ec6762ed25fadbb896a8056d01e5d",
+    "adaptation.json": "04fed029919b9debc1995d94271eea547924ab6fe1a06bcfbd902a11567ee8b8",
+    "left-chat.md": "14d894704b95a3162ea95f344a94896c82539378eeb72f5e8af04d7fb91dbe71",
+    "verification-recipe.md": "f0ed03c576ebc34ccf9b31d8a7d0ecd40cddc56d60d043a2600d5e3b6a7939c0"
+  }
+}
