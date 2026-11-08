@@ -24,4 +24,4 @@ The [first protocol](../../experiments/adaptation-loop/protocol.md) separates de
 
 How should repair effort be recorded without cumbersome bookkeeping? Can instructions be removed as confidently as added? How do we distinguish a weak description from an implementation mistake or an unsuitable target?
 
-[Federated hardening](federated-hardening.md) asks how some of this diagnosis and distillation could happen privately at the recipient.
+[Federated hardening](federated-hardening.md) asks how some of this diagnosis and distillation could happen privately at the recipient. [Acceptance and verification](acceptance-and-verification.md) explores carrying scenarios and evidence requirements with an adaptation, without turning every description into a source-specific UI script.

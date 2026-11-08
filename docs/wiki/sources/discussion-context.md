@@ -17,6 +17,10 @@ This is an agent-written summary of the conversation following the [journal](sel
 
 During the Markdown-reader experiment, the user proposed treating adaptations like database migrations, potentially with apply/unapply behavior. Feature development could be required to start with an adaptation rather than direct coding. Records need not be public: a private history could help agents reason about current capabilities and requirements/dependencies, such as commenting needing reading. This is a loose idea to explore, not an adopted workflow mandate. See [adaptation-led development](../adaptation-led-development.md).
 
+## Later proposal: portable acceptance evidence
+
+The user also proposed making verification part of adaptation: for example, screenshots showing the menu bar and open/working chat, or a Playwright script exercising prescribed steps. They noted that exhaustive verification can become hairy but saw value in directional improvements. See [acceptance and verification](../acceptance-and-verification.md). This was captured while the first blind runs were in flight, without changing their frozen inputs.
+
 ## Assistant interpretations, not settled architecture
 
 Packages, seeds, and adaptations were distinguished by stable interface, starting material, and contextual transformation respectively. The assistant suggested keeping voluntary reviewed contributions separate from automatic reporting, and separating candidate improvements from evidence and acceptance decisions. These are useful proposals, not an implemented sharing policy.

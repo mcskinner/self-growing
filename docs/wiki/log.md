@@ -19,3 +19,7 @@ Added a small mechanical lint for local link targets and index coverage, include
 ## [2026-11-08] discussion | Adaptations as migrations and a development ledger
 
 Captured the user's proposal for [adaptation-led development](adaptation-led-development.md): potentially require features to start with private or public adaptations, track capability requirements, and explore apply/unapply behavior. Distinguished a ledger of attempts from verified current capabilities, dependencies from common combinations, and rollback from compensation. No enforcement, dependency solver, or unapply mechanism was added. The concurrent blind Markdown-reader applications were left untouched.
+
+## [2026-11-08] discussion | Acceptance evidence travels with adaptations
+
+Captured the user's proposal for [acceptance and verification](acceptance-and-verification.md): prescribed behavioral steps, screenshots, and potentially Playwright scripts. Distinguished layout evidence from interaction evidence, simulated UI tests from live chat, and applier-authored tests from independent acceptance. Recorded privacy, cost, and overfitting concerns without introducing a new verification system or altering the first blind applications.
