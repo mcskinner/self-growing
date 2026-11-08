@@ -53,7 +53,18 @@ async function emit(patch = {}) {
   await page.evaluate(s => { window.testState = s; window.testEvents?.onmessage?.({ data: JSON.stringify(s) }); }, state);
 }
 await page.addInitScript(s => { window.testState = s; }, state);
+async function assertHeaderAlignment(split) {
+  const viewport = page.viewportSize();
+  const box = await page.locator('header').boundingBox();
+  const gutters = split ? (viewport.width <= 760 ? 32 : 48) : (viewport.width <= 600 ? 32 : 64);
+  const expected = split ? viewport.width - gutters : Math.min(viewport.width - gutters, 1100);
+  assert(Math.abs(box.width - expected) <= 1, 'Header must follow the active layout width');
+  assert(Math.abs(box.x - (viewport.width - expected) / 2) <= 1, 'Header gutters must be balanced');
+  const brand = await page.locator('.brand').boundingBox();
+  assert(Math.abs(brand.x + brand.width / 2 - viewport.width / 2) <= 1, 'Brand must stay centered');
+}
 async function assertFullScreenChat() {
+  await assertHeaderAlignment(false);
   assert.equal(await page.locator('.document-panel').count(), 0);
   assert.equal(await page.getByRole('separator').count(), 0);
   assert.equal(await page.locator('.chat-heading').isVisible(), false);
@@ -70,6 +81,7 @@ try {
   await assertFullScreenChat();
   await input.fill('Keep my draft'); await open.click();
   await page.getByRole('heading', { name: 'Reader fidelity', exact: true }).waitFor();
+  await assertHeaderAlignment(true);
   assert.equal(await input.inputValue(), 'Keep my draft');
   assert.equal(await page.locator('.markdown-document table').count(), 1);
   assert(await page.locator('.markdown-document pre').evaluate(e => e.scrollWidth > e.clientWidth));
@@ -135,7 +147,12 @@ try {
   await page.waitForTimeout(100);
   assert.equal(state.sessionId, 'three');
   await page.getByRole('heading', { name: 'Refreshed after work' }).waitFor();
+  for (const width of [1920, 900]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await assertHeaderAlignment(true);
+  }
   await page.setViewportSize({ width: 390, height: 844 });
+  await assertHeaderAlignment(true);
   await input.scrollIntoViewIfNeeded(); await input.fill('Narrow draft');
   await page.getByRole('button', { name: 'Settings', exact: true }).scrollIntoViewIfNeeded();
   await page.getByRole('button', { name: 'Settings', exact: true }).click(); await page.getByRole('checkbox').uncheck(); await page.keyboard.press('Escape');
@@ -152,7 +169,10 @@ try {
   await assertFullScreenChat();
   assert.equal(await input.inputValue(), 'Narrow draft');
   await page.screenshot({ path: `${artifacts}/closed-narrow.png` });
+  await page.setViewportSize({ width: 1920, height: 1000 });
+  await assertFullScreenChat();
+  await page.screenshot({ path: `${artifacts}/closed-wide.png` });
   assert.deepEqual(errors, []); assert.deepEqual(unexpected, []);
-  console.log('PASS: open/draft, rendering safety, settings, pointer/keyboard resize, independent scroll, relative link, cancel, reload/width, full-screen chat initially and after close/reopen on desktop/narrow with preserved composer/draft/width, error/retry, switch chat, mocked send/steer/stop/reply/refresh, narrow reachability; no JS errors or external requests.');
+  console.log('PASS: layout-aware header width/gutters/centered brand at desktop/wide/tablet/narrow sizes, open/draft, rendering safety, settings, pointer/keyboard resize, independent scroll, relative link, cancel, reload/width, full-screen chat initially and after close/reopen on desktop/narrow with preserved composer/draft/width, error/retry, switch chat, mocked send/steer/stop/reply/refresh, narrow reachability; no JS errors or external requests.');
   }
 } finally { await browser.close(); }
