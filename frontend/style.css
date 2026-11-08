@@ -85,7 +85,7 @@ button:focus-visible, a:focus-visible { outline: 2px solid #6f8859; outline-offs
   flex-shrink: 0; padding-bottom: 12px; margin-bottom: 12px; border-bottom: 1px solid #e6e7de; }
 .history-heading h2 { margin: 0; font-size: 15px; font-weight: 600; }
 .history-start { display: flex; align-items: center; gap: 8px; }
-.history-start .icon-button svg { transform: translateY(1px); }
+.history-start .icon-button svg { transform: translateY(.5px); }
 .history-note { color: #78816f; font-size: 12px; line-height: 1.7; }
 .history-list { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
   list-style: none; padding: 0; margin: 12px 0 0; }
@@ -172,7 +172,6 @@ button:focus-visible, a:focus-visible { outline: 2px solid #6f8859; outline-offs
 }
 @media (max-width: 760px) {
   .app.reviewing { display: flex; flex-direction: column; overflow-y: auto; }
-  .connection { display: none; }
   .panel-resizer { display: none; }
   .reviewing .document-panel { flex: none; }
   .reviewing .document-scroll { overflow: auto; max-height: 85dvh; flex: none; }
