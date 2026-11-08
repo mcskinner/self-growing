@@ -1,6 +1,6 @@
 # Adaptations and capability exchange
 
-Status: file-based exploration implemented; initial blind reader transfers and a prompted repair recorded, with limited acceptance evidence.
+Status: file-based exploration implemented; first reader transfers, a prompted repair, and a fresh reference-fidelity application recorded. The owner accepted the latter with local refinements; broad generalization is not established.
 
 ## The exchangeable unit
 
@@ -22,11 +22,13 @@ The [lab](../../adaptations/README.md) captures source diffs, snapshots applicat
 
 Its [starter smoke trial](../../adaptations/left-chat/applications/starter-smoke-01/feedback.md) passed check/test/build but did not test visual or live-chat acceptance. The same agent authored the framework and performed the transfer with source knowledge. It demonstrates mechanics, not generalization or instruction sufficiency.
 
-A later [Markdown-reader experiment](../../adaptations/markdown-reader/README.md) used fresh distiller/applier sessions on starter and workshop targets with the skill/tooling unchanged. Both passed baseline evaluation; independent workshop browser checks found missing relative-link navigation, which a separate prompted repair fixed. The browser fixture mocks APIs/chat, so this is not live-provider or native-dialog evidence. A candidate instruction improvement remains untested on a fresh target.
+A later [Markdown-reader experiment](../../adaptations/markdown-reader/README.md) used fresh distiller/applier sessions on starter and workshop targets with the skill/tooling unchanged. Both passed baseline evaluation; independent workshop browser checks found missing relative-link navigation, which a separate prompted repair fixed. The browser fixture mocks APIs/chat, so this is not live-provider or native-dialog evidence. The first integration then failed owner visual acceptance despite passing functional checks. Revised reader and left-chat descriptions were applied together from the historical workshop base in a [fresh fidelity trial](../../experiments/markdown-reader-fidelity/protocol.md). That preview passed preliminary reference/behavior checks and was accepted by the owner with local refinements. This supplies fresh-context transfer evidence, not a controlled comparison isolating one instruction change.
 
 ## Questions
 
 What reference evidence is enough? How do we identify related adaptations or incompatible requirements? When does a recurring transformation deserve a stable package? How can useful knowledge survive increasing divergence?
+
+Granularity remains open: a useful outcome may transfer independently, while a familiar combination needs its own integration acceptance. Co-occurrence across apps might suggest combinations but does not establish a dependency. A whole-workshop adaptation could describe an outcome without requiring reproduction of every incidental detail of one branch snapshot.
 
 A further proposal is [adaptation-led development](adaptation-led-development.md): use private or shared adaptations as the normal feature-development path, with a ledger and possible apply/unapply operations. This extends beyond distilling already-built features and is not yet an adopted requirement.
 

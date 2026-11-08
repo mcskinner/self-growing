@@ -31,4 +31,4 @@ Too little guidance leaves each change disconnected from intent. Too much guidan
 
 Who may propose, execute, review, or undo changes? How does an owner express preferences without writing a rigid specification? Which decisions should remain human? Can a workflow's values travel with an [adaptation](adaptations-and-capability-exchange.md), and which should remain local?
 
-The [collective-learning](collective-learning.md) idea raises a separate authority boundary: a shared suggestion is not permission to change a recipient's app.
+The [collective-learning](collective-learning.md) idea raises a separate authority boundary: a shared suggestion is not permission to change a recipient's app. [Sharing and deployment](sharing-and-deployment.md) adds another distinct work track: viewer access, contributor permission to invoke the builder, read-only demos, and chat-free published apps. These are not protections the current local app already provides.

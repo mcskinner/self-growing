@@ -1,6 +1,6 @@
 # Minimal instructions and hardening
 
-Status: working principle; initial independent applications recorded, but comparative instruction-hardening trials not yet performed.
+Status: working principle; fresh-context applications of revised guidance recorded, but controlled comparisons isolating instruction changes not yet performed.
 
 ## Smallest sufficient description
 
@@ -18,9 +18,9 @@ A candidate improvement should be checked against earlier application cases as w
 
 ## Current evidence and limits
 
-The [first protocol](../../experiments/adaptation-loop/protocol.md) separates deterministic checks from behavioral evidence. Its smoke trial exposed inherited launcher ports affecting a test; this justified a runner change, not more layout instructions. No transfer failure yet justifies expanding the left-chat description.
+The [first protocol](../../experiments/adaptation-loop/protocol.md) separates deterministic checks from behavioral evidence. Its smoke trial exposed inherited launcher ports affecting a test; this justified a runner change, not more layout instructions. That initial smoke trial did not justify expanding the left-chat description; later owner feedback did reveal missing layout expectations.
 
-The [Markdown-reader trial](../../adaptations/markdown-reader/README.md) subsequently exposed a different gap: the source and distilled description lacked relative-link navigation required by the coordinator's acceptance. A prompted application repair passed, and a one-sentence candidate addition was recorded separately. This is evidence for clarifying the desired outcome, not proof that the candidate improves fresh transfers. The initial description remains frozen.
+The [Markdown-reader trial](../../adaptations/markdown-reader/README.md) subsequently exposed a different gap: the source and distilled description lacked relative-link navigation required by the coordinator's acceptance. A prompted application repair passed, and a one-sentence candidate addition was recorded separately. That repair alone was evidence for clarifying the desired outcome, not proof of fresh transfer improvement. A later [fidelity retry](../../experiments/markdown-reader-fidelity/protocol.md) applied revised reader and left-chat guidance together from the historical workshop base, including relative-link navigation, and reached owner acceptance with refinements. This does not isolate which instruction mattered. Original descriptions remain in Git and frozen application snapshots; current descriptions include the evidenced revisions.
 
 ## Questions
 

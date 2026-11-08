@@ -29,11 +29,13 @@ The assistant initially recommended two repositories and later a simple notes co
 
 ## Implemented experiment and evidence
 
-The adaptation scaffold was committed as [3414970](https://github.com/mcskinner/self-growing/commit/3414970); the link resolves remotely only once that commit is pushed. It includes a minimal skill, a file-based CLI, left-chat reference evidence, an application record, evaluation logs, and a protocol. See the [lab guide](../../../adaptations/README.md) and [smoke-trial feedback](../../../adaptations/left-chat/applications/starter-smoke-01/feedback.md).
+The adaptation scaffold was committed as [3414970](https://github.com/mcskinner/self-growing/commit/3414970) and is now preserved on the published trunk history. It includes a minimal skill, a file-based CLI, left-chat reference evidence, an application record, evaluation logs, and a protocol. See the [lab guide](../../../adaptations/README.md) and [smoke-trial feedback](../../../adaptations/left-chat/applications/starter-smoke-01/feedback.md).
 
 The smoke trial was performed by the same agent that built the framework, with prior source knowledge. Automated checks passed after environment normalization; browser and live-chat acceptance were not tested. At the initial wiki filing, no independent transfer, federated submission system, shared registry, or automated prompt-hardening loop had been demonstrated.
 
 Subsequently, the [Markdown-reader experiment](../../../adaptations/markdown-reader/README.md) recorded fresh distillation and independent starter/workshop applications using the existing skill and machinery unchanged. Both passed automated evaluation; coordinator browser checks found a relative-link gap and verified a separate prompted repair with mocked APIs/chat. The reader and repair were then integrated into trunk. This does not establish live-provider acceptance, automatic hardening, or a federated service.
+
+The owner then rejected the first integration's visual/layout quality. A fresh application of revised reader and left-chat descriptions against the original reference was accepted with refinements, followed by local closed-document and header fixes. See the [fidelity protocol](../../../experiments/markdown-reader-fidelity/protocol.md). The user also clarified that principles/process guidance should be [pluggable and entirely skippable](../pluggable-principles.md), proposed [sharing/deployment without local installation](../sharing-and-deployment.md), and preferred selective evidence over permanent branches/artifact bundles for routine tests. These later outcomes supersede initial pending/untested summaries, not the original source journal.
 
 ## External influence
 

@@ -56,12 +56,32 @@ await page.addInitScript(s => { window.testState = s; }, state);
 async function assertHeaderAlignment(split) {
   const viewport = page.viewportSize();
   const box = await page.locator('header').boundingBox();
-  const gutters = split ? (viewport.width <= 760 ? 32 : 48) : (viewport.width <= 600 ? 32 : 64);
-  const expected = split ? viewport.width - gutters : Math.min(viewport.width - gutters, 1100);
+  const gutters = viewport.width <= 600 ? 32 : 64;
+  const expected = split ? viewport.width : Math.min(viewport.width - gutters, 1100);
   assert(Math.abs(box.width - expected) <= 1, 'Header must follow the active layout width');
   assert(Math.abs(box.x - (viewport.width - expected) / 2) <= 1, 'Header gutters must be balanced');
   const brand = await page.locator('.brand').boundingBox();
   assert(Math.abs(brand.x + brand.width / 2 - viewport.width / 2) <= 1, 'Brand must stay centered');
+  if (split) {
+    const padding = await page.locator('header').evaluate(e => {
+      const style = getComputedStyle(e);
+      return [parseFloat(style.paddingLeft), parseFloat(style.paddingRight)];
+    });
+    assert.deepEqual(padding, [viewport.width <= 760 ? 16 : 24, viewport.width <= 760 ? 16 : 24]);
+    if (viewport.width > 760) {
+      const chat = await page.locator('.chat-heading').boundingBox();
+      const reader = await page.locator('.document-toolbar').boundingBox();
+      const separator = await page.locator('.panel-resizer').boundingBox();
+      const near = (a, b, message) => assert(Math.abs(a - b) <= 1, message);
+      near(chat.x, 0, 'Chat header border must reach the left app edge');
+      near(chat.x + chat.width, reader.x, 'Pane header borders must meet without a gutter');
+      near(reader.x + reader.width, viewport.width, 'Reader header border must reach the right app edge');
+      near(chat.y, box.y + box.height, 'Chat must meet the global header');
+      near(reader.y, chat.y, 'Pane headers must start together');
+      near(reader.y + reader.height, chat.y + chat.height, 'Pane header bottom borders must align');
+      near(separator.x + 4, reader.x, 'Visible resize divider must meet pane borders');
+    }
+  }
 }
 async function assertFullScreenChat() {
   await assertHeaderAlignment(false);
