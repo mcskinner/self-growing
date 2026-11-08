@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pi SDK login prototype</title>
+<h1>Pi provider login</h1>
+<p>OAuth only. Credentials stay in Pi's server-side storage. Use terminal <code>pi /login</code> for API keys.</p>
+<select id="provider" aria-label="Provider"></select>
+<button id="login">Log in</button> <button id="cancel">Cancel</button>
+<p id="status" role="status"></p>
+<p><a id="link" target="_blank" rel="noopener noreferrer" hidden>Open provider login</a></p>
+<pre id="code"></pre>
+<form id="prompt" hidden>
+<label id="label" for="answer"></label>
+<input id="answer" autocomplete="off">
+<select id="choice" aria-label="Login choice" hidden></select>
+<button>Continue</button>
+</form>
+<script type="module" src="/auth.js"></script>
+</html>
