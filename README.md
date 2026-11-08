@@ -1,22 +1,39 @@
 # Self-growing
 
-An experimental approach to growing software with AI agents.
+Start small. Grow something strange.
 
-Start with a small local app and grow it through its embedded Pi chat. The agent changes
-the same app you're using. One active chat at a time, one local workspace, no database.
+Self-growing is an experiment in software you shape from inside: a local app with an
+embedded Pi chat, where the agent changes the very app you're using. Ask for what you
+need, try it, and let the useful parts take root.
 
-- **`trunk` / `starter-kit`**: the minimal starting point, including the chat and local launcher.
-- **[`markdown-comments`](https://github.com/mcskinner/self-growing/tree/markdown-comments)**:
-  an example grown from the starter—a Markdown viewer with text annotations and side-by-side chat.
+## Two ways in
 
-The installer below launches the starter kit, not the Markdown-review example.
+- **[`starter`](https://github.com/mcskinner/self-growing/tree/starter)** is the minimal
+  starter kit: chat, a local launcher, and room to grow your own thing.
+- **`trunk`** (this branch) is the workshop: the app we use to build and explore the project
+  itself. It can grow tools and experiments without making every new starter inherit them.
+
+These are different forms of the app, not development and release stages. There is no
+promise that everything on `trunk` will eventually merge into `starter`. Useful capabilities
+can travel between them without the branches having to converge.
+
+Other offshoots include
+**[`markdown-comments`](https://github.com/mcskinner/self-growing/tree/markdown-comments)**,
+a Markdown reader with anchored annotations and side-by-side chat. The larger experiment
+is learning how to exchange adaptations: an explanation of a transformation, backed by
+its application history and code diffs. That's a direction to explore, not an implemented
+plugin protocol.
+
+The installer below starts you from `starter`. To work in the workshop instead, pass
+`--branch trunk` to the piped installer with a separate `--dir PATH`, or clone this branch
+and run `./install.sh` locally. Existing installations keep their current branch and edits.
 
 ## Start
 
 The installer can clone the repository and launch the stack for you:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/mcskinner/self-growing/starter-kit/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/mcskinner/self-growing/starter/install.sh | sh
 ```
 
 The installer clones [`mcskinner/self-growing`](https://github.com/mcskinner/self-growing).
@@ -42,7 +59,7 @@ started by this launcher in the same checkout instead of reinstalling its depend
 Already installed Pi? Its existing login is reused. Use `./install.sh --login` to open Pi's
 login flow first, or `./install.sh --no-login` when credentials are already configured.
 `./install.sh --no-open` starts without opening a browser. The piped installer accepts the
-same flags, plus `--branch REF` (default: `starter-kit`), `--dir PATH`, and `--repo URL` for forks. The local installs are reused on
+same flags, plus `--branch REF` (default: `starter`), `--dir PATH`, and `--repo URL` for forks. The local installs are reused on
 later launches; run `./install.sh` again after closing the terminal.
 
 Prefer starting with Pi? Install Pi, log in, open this checkout in Pi, and ask it to help

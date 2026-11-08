@@ -4,7 +4,7 @@ set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 REPO=${SELF_GROWING_REPO:-https://github.com/mcskinner/self-growing.git}
-BRANCH=${SELF_GROWING_BRANCH:-starter-kit}
+BRANCH=${SELF_GROWING_BRANCH:-starter}
 DEST=${SELF_GROWING_DIR:-"$HOME/.local/share/self-growing"}
 NODE_VERSION=22.23.2
 PI_VERSION=1.5.0
@@ -33,7 +33,7 @@ while [ "$#" -gt 0 ]; do
     --help) printf '%s\n' \
       'Usage: install.sh [--repo URL] [--branch REF] [--dir PATH] [--login | --no-login] [--no-open]' \
       'Can run from a checkout or via curl | sh; defaults to mcskinner/self-growing.' \
-      'The remote entry clones starter-kit into ~/.local/share/self-growing by default.' \
+      'The remote entry clones starter into ~/.local/share/self-growing by default.' \
       'Installs missing tools locally and starts the app. Newly installed Pi opens for /login.'; exit 0 ;;
     *) die "Unknown option: $1 (try --help)" ;;
   esac
