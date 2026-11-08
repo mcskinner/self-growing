@@ -1,6 +1,15 @@
 # Self-growing
 
-A small web app you can change by talking to it. One chat, one local workspace, no database.
+An experimental approach to growing software with AI agents.
+
+Start with a small local app and grow it through its embedded Pi chat. The agent changes
+the same app you're using. One chat, one local workspace, no database.
+
+- **`trunk` / `starter-kit`**: the minimal starting point, including the chat and local launcher.
+- **[`markdown-comments`](https://github.com/mcskinner/self-growing/tree/markdown-comments)**:
+  an example grown from the starter—a Markdown viewer with text annotations and side-by-side chat.
+
+The installer below launches the starter kit, not the Markdown-review example.
 
 ## Start
 
