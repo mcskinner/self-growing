@@ -13,6 +13,10 @@ This is an agent-written summary of the conversation following the [journal](sel
 - When an application needs extensive manual fixing, local prompt iteration could distill a suggested improvement. The user prefers actual diffs and reviewer-side diagnosis when privacy allows; locally distilled candidates offer an alternative. A submit/test/return-feedback loop was proposed.
 - The knowledge map should not automatically become formal design or GitHub roadmap items. The user prefers a top-level `docs/` with types inside it and argued for an explicit chronological log alongside Git history.
 
+## Later proposal: adaptation-led development
+
+During the Markdown-reader experiment, the user proposed treating adaptations like database migrations, potentially with apply/unapply behavior. Feature development could be required to start with an adaptation rather than direct coding. Records need not be public: a private history could help agents reason about current capabilities and requirements/dependencies, such as commenting needing reading. This is a loose idea to explore, not an adopted workflow mandate. See [adaptation-led development](../adaptation-led-development.md).
+
 ## Assistant interpretations, not settled architecture
 
 Packages, seeds, and adaptations were distinguished by stable interface, starting material, and contextual transformation respectively. The assistant suggested keeping voluntary reviewed contributions separate from automatic reporting, and separating candidate improvements from evidence and acceptance decisions. These are useful proposals, not an implemented sharing policy.

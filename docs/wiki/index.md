@@ -11,6 +11,7 @@ This is a working wiki, not a plan to build everything below. [Conventions](READ
 ## How improvements travel
 
 - [Adaptations and capability exchange](adaptations-and-capability-exchange.md) — explained transformations, application histories, packages, and branches that need not converge.
+- [Adaptation-led development](adaptation-led-development.md) — private capability ledgers, prospective transformations, dependencies, and the apply/unapply analogy.
 - [Minimal instructions and hardening](minimal-instructions-and-hardening.md) — learning which instructions earn their place through actual transfers.
 - [Federated hardening](federated-hardening.md) — locally distilled improvement candidates when implementation evidence cannot travel.
 - [Collective learning](collective-learning.md) — a shared library of experience without assuming a central view of everyone's workspace.

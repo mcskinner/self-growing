@@ -15,3 +15,7 @@ Reviewed the initial pages for conceptual consistency and linked evidence. Kept 
 No claim of successful independent transfer or implemented federated service is supported by the current smoke trial. Preserved open tensions: minimal core versus usability, short instructions versus sufficient guidance, private evidence versus verifiability, and collective learning versus automatic reporting. These are questions to investigate, not contradictions to resolve automatically.
 
 Added a small mechanical lint for local link targets and index coverage, included in `make check`. It does not check external URLs, anchors, or semantic truth. Semantic lint remains a review activity governed by the [wiki conventions](README.md).
+
+## [2026-11-08] discussion | Adaptations as migrations and a development ledger
+
+Captured the user's proposal for [adaptation-led development](adaptation-led-development.md): potentially require features to start with private or public adaptations, track capability requirements, and explore apply/unapply behavior. Distinguished a ledger of attempts from verified current capabilities, dependencies from common combinations, and rollback from compensation. No enforcement, dependency solver, or unapply mechanism was added. The concurrent blind Markdown-reader applications were left untouched.

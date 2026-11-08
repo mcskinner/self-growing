@@ -26,4 +26,6 @@ Its [starter smoke trial](../../adaptations/left-chat/applications/starter-smoke
 
 What reference evidence is enough? How do we identify related adaptations or incompatible requirements? When does a recurring transformation deserve a stable package? How can useful knowledge survive increasing divergence?
 
+A further proposal is [adaptation-led development](adaptation-led-development.md): use private or shared adaptations as the normal feature-development path, with a ledger and possible apply/unapply operations. This extends beyond distilling already-built features and is not yet an adopted requirement.
+
 Related: [hardening](minimal-instructions-and-hardening.md), [federated hardening](federated-hardening.md), [collective learning](collective-learning.md).
