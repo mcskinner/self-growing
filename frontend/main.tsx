@@ -4,6 +4,7 @@ import type { Transcript, Message } from './transcript';
 import { ChatDisplay } from './chat-display';
 import { ContextMeter, type ContextUsage } from './context-meter';
 import { useMessageQueue } from './message-queue';
+import { composerError } from './chat-errors';
 import './transcript';
 import './style.css';
 
@@ -68,6 +69,7 @@ function App() {
     if (!transcript.current) return;
     transcript.current.messages = state.messages;
     transcript.current.showDetails = showDetails;
+    transcript.current.busy = state.busy;
     void transcript.current.updateComplete.then(() => {
       if (follow.current && scroller.current) scroller.current.scrollTop = scroller.current.scrollHeight;
     });
@@ -116,15 +118,23 @@ function App() {
     finally { setStopping(false); input.current?.focus(); }
   }
 
+  const visibleError = error || messages.error || composerError(state.error, state.messages, state.busy);
+
   return <div className="app">
     <header><a className="brand" href="/" aria-label="Self-growing home"><span className="seed">✳</span> self-growing</a>
       <div className="header-actions"><ChatDisplay showDetails={showDetails} onChange={setShowDetails} />
         <span className="connection"><i className={connected ? 'online' : ''} />{connected ? 'Local workspace' : 'Connecting…'}</span></div>
     </header>
-    <main ref={scroller} onScroll={() => {
-      const el = scroller.current!;
-      follow.current = el.scrollHeight - el.scrollTop - el.clientHeight < 100;
-    }}>
+    <main ref={scroller}
+      onWheelCapture={event => { if (event.deltaY < 0) follow.current = false; }}
+      onTouchMoveCapture={() => { follow.current = false; }}
+      onKeyDownCapture={event => {
+        if (['ArrowUp', 'PageUp', 'Home'].includes(event.key)) follow.current = false;
+      }}
+      onScroll={() => {
+        const el = scroller.current!;
+        follow.current = el.scrollHeight - el.scrollTop - el.clientHeight <= 2;
+      }}>
       <div className="conversation">
         {!state.messages.length && <section className="welcome">
           <div className="eyebrow">A little software, room to grow.</div>
@@ -138,7 +148,7 @@ function App() {
     <footer>
       <ContextMeter usage={state.context} disabled={!connected || state.busy || !!messages.queue.length || stopping}
         starting={startingSession} onNew={() => void newChat()} />
-      {(error || messages.error || state.error) && <div className="error" role="alert">{error || messages.error || state.error}</div>}
+      {visibleError && <div className="error" role="alert">{visibleError}</div>}
       {!!state.steering?.length && <details className="pending-steering">
         <summary>{state.steering.length} steering message{state.steering.length === 1 ? '' : 's'} waiting for Pi</summary>
         <ul>{state.steering.map((text, index) => <li key={index}>{text}</li>)}</ul>

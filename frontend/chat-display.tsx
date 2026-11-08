@@ -29,7 +29,7 @@ export function ChatDisplay({ showDetails, onChange }: {
       <h2>Chat display</h2>
       <label><input ref={checkbox} type="checkbox" checked={showDetails} onChange={event => onChange(event.target.checked)} />
         <span>Show thinking and tool activity</span></label>
-      <p>Show thinking, edits, commands, and tool results. Replies and errors are always visible.</p>
+      <p>Show thinking, edits, commands, and tool results. Replies and provider errors are always visible.</p>
     </section>}
   </div>;
 }
