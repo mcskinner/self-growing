@@ -5,18 +5,23 @@ An experimental approach to growing software with AI agents.
 Start with a small local app and grow it through its embedded Pi chat. The agent changes
 the same app you're using. One chat, one local workspace, no database.
 
-- **`trunk` / `starter-kit`**: the minimal starting point, including the chat and local launcher.
+- **`starter`** (this branch): the minimal starting point, including the chat and local launcher.
+- **[`trunk`](https://github.com/mcskinner/self-growing/tree/trunk)**: the development workshop,
+  grown from the starter to build and explore the project itself.
 - **[`markdown-comments`](https://github.com/mcskinner/self-growing/tree/markdown-comments)**:
   an example grown from the starter—a Markdown viewer with text annotations and side-by-side chat.
 
-The installer below launches the starter kit, not the Markdown-review example.
+The starter stays small; the workshop is free to grow. Useful capabilities can travel
+between branches without everything eventually merging back here.
+
+The installer below launches this starter kit.
 
 ## Start
 
 The installer can clone the repository and launch the stack for you:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/mcskinner/self-growing/starter-kit/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/mcskinner/self-growing/starter/install.sh | sh
 ```
 
 The installer clones [`mcskinner/self-growing`](https://github.com/mcskinner/self-growing).
@@ -42,7 +47,7 @@ started by this launcher in the same checkout instead of reinstalling its depend
 Already installed Pi? Its existing login is reused. Use `./install.sh --login` to open Pi's
 login flow first, or `./install.sh --no-login` when credentials are already configured.
 `./install.sh --no-open` starts without opening a browser. The piped installer accepts the
-same flags, plus `--branch REF` (default: `starter-kit`), `--dir PATH`, and `--repo URL` for forks. The local installs are reused on
+same flags, plus `--branch REF` (default: `starter`), `--dir PATH`, and `--repo URL` for forks. The local installs are reused on
 later launches; run `./install.sh` again after closing the terminal.
 
 Prefer starting with Pi? Install Pi, log in, open this checkout in Pi, and ask it to help

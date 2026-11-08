@@ -106,7 +106,7 @@ def test_piped_installer_clones_and_reuses_a_checkout(checkout, tmp_path):
     root, _, _, env = checkout
     git = shutil.which("git")
     assert git
-    subprocess.run([git, "init", "-b", "starter-kit", str(root)], check=True, capture_output=True)
+    subprocess.run([git, "init", "-b", "starter", str(root)], check=True, capture_output=True)
     subprocess.run(
         [git, "-C", str(root), "add", "install.sh", "pyproject.toml", "scripts"], check=True
     )
@@ -163,7 +163,7 @@ def test_piped_installer_defaults_to_published_repository(checkout, tmp_path):
     assert result.returncode == 77  # The fake Git never performs a network request.
     command = log.read_text()
     assert "https://github.com/mcskinner/self-growing.git" in command
-    assert "--branch starter-kit" in command
+    assert "--branch starter" in command
 
 
 def test_piped_installer_rejects_an_explicit_empty_repository(checkout, tmp_path):
