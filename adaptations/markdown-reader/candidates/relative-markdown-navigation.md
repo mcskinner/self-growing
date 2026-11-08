@@ -1,6 +1,6 @@
 # Candidate: relative Markdown navigation
 
-Status: proposed after first applications; not incorporated into the frozen description and not yet validated by a fresh application.
+Status: proposed after first applications and now included in the revised description for the fidelity retry. It remains absent from the frozen first description and not yet validated by a fresh application.
 
 ## Suggested instruction addition
 

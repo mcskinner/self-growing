@@ -18,6 +18,10 @@ For deterministic UI tests, intercept document API and chat/SSE requests or use 
 6. Send a message; assert the outgoing request and a displayed response. Exercise steering/stop while busy. Label simulated responses. Emit an agent-work completion after changing the document fixture; assert refreshed content. Check conversation switching independently where the target supports it.
 7. Repeat key reading/composer/menu actions at a narrow viewport. Assert no page-level horizontal overflow and actual reachability, not merely DOM presence. Check page JavaScript errors and unexpected resource requests.
 
+## Reference fidelity and owner acceptance
+
+After owner rejection of the first integration, the fresh retry must also compare the same document/chat content and viewports against `markdown-comments` at `898db55`, excluding comments. Check shared app-header ownership, chat on the left, reader on the right, source-like typography/surfaces and icon-led controls. Compare actual rendered appearance, not just DOM presence. Visual captures support this review; they do not replace interaction assertions. Put a preliminarily checked candidate into the running workshop so the owner can review it, and leave acceptance pending until they approve.
+
 ## Report
 
 Keep the executed script, target commit, environment/fixture assumptions, command, and per-scenario results. Mark skipped checks and failures. Screenshots are optional diagnostic evidence, not the main proof. Translate selectors and setup to the target rather than prescribing source component names or routes. Actual native-dialog behavior and live chat require separate observations; do not silently substitute mocks.
