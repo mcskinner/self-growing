@@ -55,7 +55,8 @@ export function ChatHistory({ open, currentId, blocked, switching, onClose, onSe
     <div className="history-heading">
       <div className="history-start">
         <h2 id="history-title">Chats</h2>
-        <button className="icon-button" disabled={blocked} onClick={onNew} aria-label="New chat" title="New chat">
+        <button className="icon-button" disabled={blocked} onClick={onNew} aria-label="New chat"
+          title={blocked ? 'Finish or stop the run and clear unsent messages to start a new chat' : 'New chat'}>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"
             strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
             <path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
