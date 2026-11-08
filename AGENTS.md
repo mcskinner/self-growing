@@ -1,7 +1,12 @@
 # Self-growing
 
-This local app is a minimal starter kit that users grow through its embedded Pi chat.
-Work directly in this repository. Keep changes small and preserve a working chat.
+This branch is the self-growing workshop; `starter` is the minimal kit users grow through
+its embedded Pi chat. Work directly in this repository. Keep changes small and preserve a
+working chat.
+
+- Project knowledge lives in `docs/wiki/`; start at `index.md` and read `README.md` before
+  maintaining it. Wiki ideas are context, not requirements or permission to implement.
+  Keep meaningful synthesis and review events in its chronological `log.md`.
 
 - Frontend: React + Vite, TypeScript; Lit web component in `frontend/transcript.ts`.
 - Backend: Python 3.13, FastAPI; `uv` and `ruff`.

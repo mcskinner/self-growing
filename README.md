@@ -27,6 +27,9 @@ plugin protocol. The first file-based experiment is in the
 fresh starter, record feedback and diffs, and evaluate the result. Its prospective plan
 is in [`experiments/adaptation-loop/protocol.md`](experiments/adaptation-loop/protocol.md).
 
+The **[working wiki](docs/wiki/index.md)** maps the ideas, open questions, and evidence
+behind the project. It's evolving synthesis, not a roadmap or specification.
+
 The installer below starts you from `starter`. To work in the workshop instead, pass
 `--branch trunk` to the piped installer with a separate `--dir PATH`, or clone this branch
 and run `./install.sh` locally. Existing installations keep their current branch and edits.
@@ -124,7 +127,7 @@ provider access, retries, compaction, and context. `AGENTS.md` tells it how this
 ```sh
 ./install.sh  # Provision missing tools, install dependencies, and open the local app
 make dev      # Install dependencies and start both dev servers
-make check    # Ruff lint/format checks + TypeScript
+make check    # Ruff lint/format checks + wiki links/index + TypeScript
 make test     # Backend and frontend logic tests (no model calls)
 make build    # Type-check and build the frontend
 make format   # Format/lint-fix Python

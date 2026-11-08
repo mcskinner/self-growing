@@ -10,6 +10,7 @@ dev: install
 check:
 	uv run ruff check .
 	uv run ruff format --check .
+	uv run python scripts/wiki_lint.py
 	npm run check
 
 test:
