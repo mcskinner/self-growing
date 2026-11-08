@@ -215,7 +215,7 @@ function Chat({ state, connected, documentPath, onOpenDocument, review, onReview
       </div>
       <a className="brand" href="/" aria-label="Self-growing home"><span className="seed" aria-hidden="true">✳</span><span className="brand-name">self-growing</span></a>
       <div className="header-actions">
-        <span className="connection"><i className={connected ? 'online' : ''} />{connected ? 'Local workspace' : 'Connecting…'}</span>
+        <span className="connection" title="Connection to the local chat backend"><i className={connected ? 'online' : ''} />{connected ? 'Connected' : 'Reconnecting…'}</span>
         <DocumentPicker onOpen={onOpenDocument} />
         <ChatDisplay showDetails={showDetails} onChange={setShowDetails} />
       </div>

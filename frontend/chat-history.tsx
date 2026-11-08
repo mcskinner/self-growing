@@ -53,7 +53,16 @@ export function ChatHistory({ open, currentId, blocked, switching, onClose, onSe
       if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) onClose();
     }}>
     <div className="history-heading">
-      <h2 id="history-title">Chats</h2>
+      <div className="history-start">
+        <h2 id="history-title">Chats</h2>
+        <button className="icon-button" disabled={blocked} onClick={onNew} aria-label="New chat" title="New chat">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"
+            strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+            <path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+            <path d="M16 3a2.12 2.12 0 0 1 3 3l-9 9-4 1 1-4Z" />
+          </svg>
+        </button>
+      </div>
       <button className="icon-button" onClick={onClose} aria-label="Close chat history" title="Close">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"
           strokeLinecap="round" aria-hidden="true" focusable="false">
@@ -61,7 +70,6 @@ export function ChatHistory({ open, currentId, blocked, switching, onClose, onSe
         </svg>
       </button>
     </div>
-    <button className="quiet-button history-new" disabled={blocked} onClick={onNew}>New chat</button>
     {blocked && <p className="history-note" role="status">{switching ? 'Opening chat…' : 'Finish or stop the run and clear unsent messages before switching chats.'}</p>}
     {loading && <p className="history-note" role="status">Loading chats…</p>}
     {error && <p className="error" role="alert">{error}</p>}
