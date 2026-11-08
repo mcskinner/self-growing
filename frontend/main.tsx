@@ -1,4 +1,5 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
+import { DocumentPicker, DocumentView } from './documents';
 import { createRoot } from 'react-dom/client';
 import type { Transcript, Message } from './transcript';
 import { ChatDisplay } from './chat-display';
@@ -15,9 +16,31 @@ interface State {
   steering: string[]; context: ContextUsage | null; sessionId: string | null;
 }
 
+interface ReviewRequest { sessionId: string | null; text: string }
+
 function App() {
   const [state, setState] = useState<State | null>(null);
   const [connected, setConnected] = useState(false);
+  const [documentPath, setDocumentPath] = useState(() => sessionStorage.getItem('open-document') || '');
+  const [review, setReview] = useState<ReviewRequest | null>(null);
+  const [chatWidth, setChatWidth] = useState(() => {
+    const saved = Number(localStorage.getItem('chat-width'));
+    return Number.isFinite(saved) && saved >= 320 ? Math.min(saved, 900) : 480;
+  });
+  const [resizing, setResizing] = useState(false);
+  const workspace = useRef<HTMLDivElement>(null);
+  const drag = useRef<{ x: number; width: number } | null>(null);
+  function openDocument(path: string) {
+    if (path) sessionStorage.setItem('open-document', path);
+    else sessionStorage.removeItem('open-document');
+    setDocumentPath(path);
+  }
+  useEffect(() => { localStorage.setItem('chat-width', String(chatWidth)); }, [chatWidth]);
+  function resizeChat(width: number) {
+    const available = workspace.current?.clientWidth || window.innerWidth;
+    const reserved = window.innerWidth > 1000 ? 393 : 369;
+    setChatWidth(Math.round(Math.max(320, Math.min(width, 900, available - reserved))));
+  }
   useEffect(() => {
     const events = new EventSource('/api/events');
     events.onmessage = event => {
@@ -29,11 +52,40 @@ function App() {
     return () => events.close();
   }, []);
   if (!state) return <div className="app"><p className="connecting" role="status">Connecting to your workspace…</p></div>;
-  // Each conversation owns its draft/outbox closures, even if an old request finishes late.
-  return <Chat key={state.sessionId || 'initial'} state={state} connected={connected} />;
+  // The document is a sibling of the keyed chat: switching chats must not remount its editor.
+  return <div className={`app ${documentPath ? 'reviewing' : ''} ${resizing ? 'resizing' : ''}`}
+    ref={workspace} style={{ '--chat-width': `${chatWidth}px` } as CSSProperties}>
+    <Chat key={state.sessionId || 'initial'} state={state} connected={connected}
+      documentPath={documentPath} onOpenDocument={openDocument} review={review} onReviewConsumed={() => setReview(null)} />
+    {documentPath && <div className="panel-resizer" role="separator" tabIndex={0}
+      aria-label="Resize chat panel" aria-orientation="vertical" aria-valuemin={320} aria-valuemax={900} aria-valuenow={chatWidth}
+      onDoubleClick={() => resizeChat(480)}
+      onPointerDown={event => {
+        if (event.button !== 0) return;
+        event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId);
+        drag.current = { x: event.clientX, width: event.currentTarget.previousElementSibling!.getBoundingClientRect().width };
+        setResizing(true);
+      }} onPointerMove={event => {
+        if (drag.current) resizeChat(drag.current.width + event.clientX - drag.current.x);
+      }} onPointerUp={event => {
+        drag.current = null; setResizing(false); event.currentTarget.releasePointerCapture(event.pointerId);
+      }} onLostPointerCapture={() => { drag.current = null; setResizing(false); }}
+      onKeyDown={event => {
+        if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
+          event.preventDefault();
+          const current = event.currentTarget.previousElementSibling!.getBoundingClientRect().width;
+          resizeChat(event.key === 'Home' ? 320 : event.key === 'End' ? 900 : current + (event.key === 'ArrowRight' ? 1 : -1) * (event.shiftKey ? 80 : 20));
+        }
+      }} />}
+    {documentPath && <DocumentView key={documentPath} path={documentPath} busy={state.busy}
+      onClose={() => openDocument('')} onReview={text => setReview({ sessionId: state.sessionId, text })} />}
+  </div>;
 }
 
-function Chat({ state, connected }: { state: State; connected: boolean }) {
+function Chat({ state, connected, documentPath, onOpenDocument, review, onReviewConsumed }: {
+  state: State; connected: boolean; documentPath: string; onOpenDocument: (path: string) => void;
+  review: ReviewRequest | null; onReviewConsumed: () => void;
+}) {
   const draftKey = chatKey(state.sessionId, 'draft');
   const cursorKey = chatKey(state.sessionId, 'draft-cursor');
   const [showDetails, setShowDetails] = useState(() => localStorage.getItem('show-chat-details') === 'true');
@@ -99,6 +151,11 @@ function Chat({ state, connected }: { state: State; connected: boolean }) {
     }
   }, [draft]);
   useEffect(() => { localStorage.setItem('show-chat-details', String(showDetails)); }, [showDetails]);
+  useEffect(() => {
+    if (!review || review.sessionId !== state.sessionId) return;
+    setDraft(current => current.trim() ? `${current}\n\n${review.text}` : review.text);
+    onReviewConsumed(); input.current?.focus();
+  }, [review]);
 
   function send() {
     if (!draft.trim() || stopping || startingSession || !connected) return;
@@ -144,7 +201,7 @@ function Chat({ state, connected }: { state: State; connected: boolean }) {
 
   const visibleError = error || messages.error || composerError(state.error, state.messages, state.busy);
 
-  return <div className="app">
+  return <>
     <header>
       <div className="header-start">
         <button className="icon-button" onClick={() => setHistoryOpen(true)} aria-label="Chats" title="Chats"
@@ -159,11 +216,14 @@ function Chat({ state, connected }: { state: State; connected: boolean }) {
       <a className="brand" href="/" aria-label="Self-growing home"><span className="seed" aria-hidden="true">✳</span><span className="brand-name">self-growing</span></a>
       <div className="header-actions">
         <span className="connection" title="Connection to the local chat backend"><i className={connected ? 'online' : ''} />{connected ? 'Connected' : 'Reconnecting…'}</span>
+        <DocumentPicker onOpen={onOpenDocument} />
         <ChatDisplay showDetails={showDetails} onChange={setShowDetails} />
       </div>
     </header>
     <ChatHistory open={historyOpen} currentId={state.sessionId} blocked={switchingBlocked} switching={startingSession}
       onClose={() => setHistoryOpen(false)} onSelect={id => void changeChat(id)} onNew={() => void changeChat()} />
+    <section className="chat-panel" aria-label="Pi chat">
+      {documentPath && <div className="chat-heading"><span className="seed" aria-hidden="true">✳</span> Pi <span>Your design partner</span></div>}
     <main ref={scroller}
       onWheelCapture={event => { if (event.deltaY < 0) follow.current = false; }}
       onTouchMoveCapture={() => { follow.current = false; }}
@@ -219,7 +279,8 @@ function Chat({ state, connected }: { state: State; connected: boolean }) {
       </form>
       <div className="footnote"><span>Pi can edit files and run commands in this workspace.</span><span>Enter to {state.busy ? 'steer' : 'send'} · Shift + Enter for a new line</span></div>
     </footer>
-  </div>;
+    </section>
+  </>;
 }
 
 createRoot(document.getElementById('root')!).render(<App />);

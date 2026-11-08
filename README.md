@@ -68,6 +68,16 @@ WEB_PORT=5177 API_PORT=8107 ./install.sh
 `PI_BIN` can point to a different Pi executable. Python is pinned to the 3.13 series;
 uv can install it if needed. Ctrl+C stops the dev servers.
 
+## Markdown review
+
+The **Open document** folder icon in the header uses the macOS native file chooser to open an original Markdown file,
+without copying or importing it. Select text and choose **+ Comment** to add an annotation
+in the side rail. Saving or resolving annotations updates an HTML metadata block inside
+that Markdown file, so comments travel with it when renamed or moved. The chat stays on
+the left while reviewing; drag the divider to resize it. Closing the document restores
+the centered chat. New chat and history switching keep the document open, including
+any unsaved annotation draft. Chat drafts and outboxes remain attached to their conversations.
+
 ## How it works
 
 - **React + Vite** provide the app shell and live frontend updates.
@@ -118,7 +128,7 @@ Host checks, and Origin checks reduce browser attacks; they are not a sandbox. D
 these servers through a tunnel or public interface. Use Git to review and recover changes.
 Project-local Pi resources are explicitly trusted (`--approve`).
 
-One selected conversation and one turn at a time; no background agents. No accounts, uploads, model picker,
+One selected conversation and one turn at a time; no background agents. No accounts, model picker,
 artifacts panel, or project management. Unsupported extension dialogs are cancelled rather
 than silently approved. TUI-only slash commands aren't supported; configure/login using Pi
 in your terminal. After compaction, a backend restart shows Pi's current conversation context,
@@ -127,3 +137,34 @@ messages remain saved. Use **New chat** for a fresh conversation or **Chats** to
 one. Search, rename, deletion, and branching are intentionally not part of the history drawer.
 
 `make build` produces static assets only; production hosting is deliberately not included.
+
+<!-- markdown-review:v1
+{
+  "comments": [
+    {
+      "text": "Do we really need the latest version? I'm also curious how these look on disk.",
+      "quote": "Pi 1.5.0+",
+      "anchor": {
+        "start": 145,
+        "end": 154,
+        "prefix": "atabase.\nStart\nYou need uv, Node.js 22.19+, and ",
+        "suffix": " on your PATH.\nThe RPC integration is tested wit"
+      },
+      "id": "21e54ec0a7bd480c895ac2c0a3d4601f",
+      "resolved": true
+    },
+    {
+      "text": "Why not pi\u002dweb\u002dui? What does that buy us?",
+      "quote": "not the full pi\u002dweb\u002dui package or a terminal emulator.",
+      "anchor": {
+        "start": 1175,
+        "end": 1229,
+        "prefix": "nd results.\nThis is a purpose\u002dbuilt RPC mirror, ",
+        "suffix": "\nFastAPI starts pi \u002d\u002dmode rpc in this repository"
+      },
+      "id": "0d4f52d892774583a9252a9cf8a9ab62",
+      "resolved": true
+    }
+  ]
+}
+-->
