@@ -16,7 +16,7 @@ The installer below launches the starter kit, not the Markdown-review example.
 The installer can clone the repository and launch the stack for you:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/mcskinner/self-growing/starter-kit/bootstrap | sh
+curl -fsSL https://raw.githubusercontent.com/mcskinner/self-growing/starter-kit/install.sh | sh
 ```
 
 The installer clones [`mcskinner/self-growing`](https://github.com/mcskinner/self-growing).
@@ -25,7 +25,7 @@ to choose another directory. Repeated runs reuse that checkout without pulling u
 switching branches, or overwriting local edits. Only pipe installer code you trust into a shell;
 you can download and inspect the script first instead.
 
-Already have a checkout? Run `./bootstrap` there—no repository URL is needed.
+Already have a checkout? Run `./install.sh` there—no repository URL is needed.
 
 On **macOS or Linux (including WSL)**, the launcher reuses installed tools or provisions
 missing Node.js, [uv](https://docs.astral.sh/uv/), and [Pi](https://pi.dev) under the gitignored
@@ -39,14 +39,14 @@ continue. The app opens in your browser once both servers are ready. Keep the te
 open; **Ctrl+C** stops the stack. Running the launcher again reuses an instance already
 started by this launcher in the same checkout instead of reinstalling its dependencies.
 
-Already installed Pi? Its existing login is reused. Use `./bootstrap --login` to open Pi's
-login flow first, or `./bootstrap --no-login` when credentials are already configured.
-`./bootstrap --no-open` starts without opening a browser. The piped installer accepts the
+Already installed Pi? Its existing login is reused. Use `./install.sh --login` to open Pi's
+login flow first, or `./install.sh --no-login` when credentials are already configured.
+`./install.sh --no-open` starts without opening a browser. The piped installer accepts the
 same flags, plus `--branch REF` (default: `starter-kit`), `--dir PATH`, and `--repo URL` for forks. The local installs are reused on
-later launches; run `./bootstrap` again after closing the terminal.
+later launches; run `./install.sh` again after closing the terminal.
 
 Prefer starting with Pi? Install Pi, log in, open this checkout in Pi, and ask it to help
-run `./bootstrap --no-login`. No browser-side provider credentials are needed.
+run `./install.sh --no-login`. No browser-side provider credentials are needed.
 With uv, Node.js 22.19+, and Pi already on your PATH, `make dev` remains available.
 The RPC integration is tested with Pi 1.5.0; that is the launcher's pinned Pi version.
 
@@ -56,13 +56,13 @@ Pi uses its existing credentials and default model. Nothing secret goes into the
 To choose a model explicitly:
 
 ```sh
-PI_MODEL='your-provider/your-model' ./bootstrap
+PI_MODEL='your-provider/your-model' ./install.sh
 ```
 
 Occupied default ports are skipped automatically. To require specific ports instead:
 
 ```sh
-WEB_PORT=5177 API_PORT=8107 ./bootstrap
+WEB_PORT=5177 API_PORT=8107 ./install.sh
 ```
 
 `PI_BIN` can point to a different Pi executable. Python is pinned to the 3.13 series;
@@ -97,7 +97,7 @@ provider access, retries, compaction, and context. `AGENTS.md` tells it how this
 ## Commands
 
 ```sh
-./bootstrap   # Provision missing tools, install dependencies, and open the local app
+./install.sh  # Provision missing tools, install dependencies, and open the local app
 make dev      # Install dependencies and start both dev servers
 make check    # Ruff lint/format checks + TypeScript
 make test     # Backend and frontend logic tests (no model calls)

@@ -31,7 +31,7 @@ while [ "$#" -gt 0 ]; do
       esac
       shift ;;
     --help) printf '%s\n' \
-      'Usage: bootstrap [--repo URL] [--branch REF] [--dir PATH] [--login | --no-login] [--no-open]' \
+      'Usage: install.sh [--repo URL] [--branch REF] [--dir PATH] [--login | --no-login] [--no-open]' \
       'Can run from a checkout or via curl | sh; defaults to mcskinner/self-growing.' \
       'The remote entry clones starter-kit into ~/.local/share/self-growing by default.' \
       'Installs missing tools locally and starts the app. Newly installed Pi opens for /login.'; exit 0 ;;
@@ -45,7 +45,7 @@ if [ ! -f "$ROOT/pyproject.toml" ] || [ ! -f "$ROOT/scripts/dev.py" ]; then
   [ -n "$REPO" ] || die 'Repository URL must not be empty; use --repo <repository-url>.'
   command -v git >/dev/null 2>&1 || die 'Install Git, then run this installer again.'
   if [ -e "$DEST" ]; then
-    [ -d "$DEST/.git" ] && [ -f "$DEST/bootstrap" ] || die "Destination already exists and is not an app checkout: $DEST"
+    [ -d "$DEST/.git" ] && [ -f "$DEST/install.sh" ] || die "Destination already exists and is not an app checkout: $DEST"
     ORIGIN=$(git -C "$DEST" remote get-url origin)
     [ "$ORIGIN" = "$REPO" ] || die "Destination belongs to another repository: $DEST"
     say "Reusing $DEST (existing files and edits are not updated or overwritten)."
@@ -55,11 +55,11 @@ if [ ! -f "$ROOT/pyproject.toml" ] || [ ! -f "$ROOT/scripts/dev.py" ]; then
     git clone --single-branch --branch "$BRANCH" -- "$REPO" "$DEST"
   fi
   TARGET=$(CDPATH= cd -- "$DEST" && pwd)
-  [ -f "$TARGET/bootstrap" ] && [ -f "$TARGET/pyproject.toml" ] && [ -f "$TARGET/scripts/dev.py" ] || die 'The repository does not contain the app launcher.'
+  [ -f "$TARGET/install.sh" ] && [ -f "$TARGET/pyproject.toml" ] && [ -f "$TARGET/scripts/dev.py" ] || die 'The repository does not contain the app launcher.'
   set --
   case "$LOGIN" in yes) set -- "$@" --login ;; no) set -- "$@" --no-login ;; esac
   [ "$OPEN_BROWSER" != 0 ] || set -- "$@" --no-open
-  exec sh "$TARGET/bootstrap" "$@"
+  exec sh "$TARGET/install.sh" "$@"
 fi
 
 cd "$ROOT"
@@ -86,7 +86,7 @@ export PATH
 mkdir -p "$TOOLS"
 
 prepare_download() {
-  command -v curl >/dev/null 2>&1 || die 'Install curl, then run ./bootstrap again.'
+  command -v curl >/dev/null 2>&1 || die 'Install curl, then run ./install.sh again.'
   if [ -z "$TEMP" ]; then TEMP=$(mktemp -d "${TMPDIR:-/tmp}/self-growing.XXXXXX"); fi
 }
 download() { curl --fail --location --retry 2 --connect-timeout 15 "$1" -o "$2"; }
@@ -138,7 +138,7 @@ if [ "$LOGIN" = yes ] || { [ "$LOGIN" = auto ] && [ "$NEW_PI" = 1 ]; }; then
   if [ -t 1 ] && [ -r /dev/tty ]; then
     "$PI_BIN" </dev/tty
   else
-    die 'Login needs a terminal. Run ./bootstrap --login interactively, or use --no-login if credentials are already configured.'
+    die 'Login needs a terminal. Run ./install.sh --login interactively, or use --no-login if credentials are already configured.'
   fi
 fi
 

@@ -10,8 +10,8 @@ import pytest
 def checkout(tmp_path):
     root = tmp_path / "checkout with spaces"
     root.mkdir()
-    source = Path(__file__).resolve().parents[1] / "bootstrap"
-    shutil.copy(source, root / "bootstrap")
+    source = Path(__file__).resolve().parents[1] / "install.sh"
+    shutil.copy(source, root / "install.sh")
     (root / "pyproject.toml").write_text("# Test checkout marker\n")
     (root / "scripts").mkdir()
     (root / "scripts" / "dev.py").write_text("# Not executed by the mocked toolchain\n")
@@ -37,7 +37,7 @@ def checkout(tmp_path):
 def launch(checkout, *arguments):
     root, _, _, env = checkout
     return subprocess.run(
-        ["sh", str(root / "bootstrap"), *arguments],
+        ["sh", str(root / "install.sh"), *arguments],
         cwd="/",
         env=env,
         text=True,
@@ -108,7 +108,7 @@ def test_piped_installer_clones_and_reuses_a_checkout(checkout, tmp_path):
     assert git
     subprocess.run([git, "init", "-b", "starter-kit", str(root)], check=True, capture_output=True)
     subprocess.run(
-        [git, "-C", str(root), "add", "bootstrap", "pyproject.toml", "scripts"], check=True
+        [git, "-C", str(root), "add", "install.sh", "pyproject.toml", "scripts"], check=True
     )
     subprocess.run(
         [
@@ -128,13 +128,13 @@ def test_piped_installer_clones_and_reuses_a_checkout(checkout, tmp_path):
     )
     destination = tmp_path / "installed app"
     arguments = ["sh", "-s", "--", "--repo", str(root), "--dir", str(destination), "--no-open"]
-    script = (root / "bootstrap").read_text()
+    script = (root / "install.sh").read_text()
     result = subprocess.run(
         arguments, input=script, cwd=tmp_path, env=env, text=True, capture_output=True, timeout=15
     )
     assert result.returncode == 0, result.stderr
     assert (destination / ".git").is_dir()
-    assert (destination / "bootstrap").exists()
+    assert (destination / "install.sh").exists()
     note = destination / "my-local-edit.md"
     note.write_text("Do not overwrite")
     result = subprocess.run(
@@ -153,7 +153,7 @@ def test_piped_installer_defaults_to_published_repository(checkout, tmp_path):
     env["SELF_GROWING_DIR"] = str(tmp_path / "fresh-install")
     result = subprocess.run(
         ["sh", "-s"],
-        input=(root / "bootstrap").read_text(),
+        input=(root / "install.sh").read_text(),
         cwd=tmp_path,
         env=env,
         text=True,
@@ -170,7 +170,7 @@ def test_piped_installer_rejects_an_explicit_empty_repository(checkout, tmp_path
     root, _, _, env = checkout
     result = subprocess.run(
         ["sh", "-s", "--", "--repo", ""],
-        input=(root / "bootstrap").read_text(),
+        input=(root / "install.sh").read_text(),
         cwd=tmp_path,
         env=env,
         text=True,
