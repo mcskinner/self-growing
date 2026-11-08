@@ -1,0 +1,17 @@
+{
+  "format": 1,
+  "adaptation": "markdown-reader",
+  "adaptation_path": "/Users/michael/dev/self-growing/adaptations/markdown-reader",
+  "adaptation_source_head": "898db55839fad721fd9d5d6158e8c93440ac6323",
+  "description_sha256": "913f67a1334b51abd954d24ee6c47ddd99d11110f291cd5d3ea24061275c92d5",
+  "base": "2db3e08f9cc4910bf27e37aeed863f046ecd9af5",
+  "worktree": "/Users/michael/dev/self-growing-reader-trunk-repair-01",
+  "feedback": "feedback.md",
+  "head": "11510661df6455fa07a71174b4b98995bdaef866",
+  "commits": [
+    "11510661df6455fa07a71174b4b98995bdaef866"
+  ],
+  "commit_links": [
+    "https://github.com/mcskinner/self-growing/commit/11510661df6455fa07a71174b4b98995bdaef866"
+  ]
+}
