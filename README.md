@@ -91,6 +91,21 @@ WEB_PORT=5177 API_PORT=8107 ./install.sh
 `PI_BIN` can point to a different Pi executable. Python is pinned to the 3.13 series;
 uv can install it if needed. Ctrl+C stops the dev servers.
 
+## Read local Markdown
+
+Use **Open Markdown** to choose an original file (native chooser on macOS), or enter
+its local path. Absolute paths may point outside this workspace; relative paths must
+remain inside it after symlink resolution. Files must be UTF-8 `.md` or `.markdown`,
+at most 2 MB. Reading never imports, edits, or adds metadata to the original.
+
+The reader stays open when switching chats and remembers its path for this browser tab.
+Drag the desktop divider, or focus it and use Left/Right (Home/End for limits), to resize;
+narrow screens stack reader above chat. **Close document** restores chat alone.
+Documents refresh after agent work, or with **Refresh**. Images and embedded resources
+are omitted; external web/email links open only when clicked. Relative links do not
+open other files—choose those explicitly. This remains a trusted, local-only app, not
+a hosted filesystem sandbox.
+
 ## How it works
 
 - **React + Vite** provide the app shell and live frontend updates.

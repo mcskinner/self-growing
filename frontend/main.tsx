@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { Transcript, Message } from './transcript';
 import { ChatDisplay } from './chat-display';
+import { ReaderLayout } from './documents';
 import { ChatHistory } from './chat-history';
 import { chatKey, migrateChatStorage } from './chat-storage';
 import { ContextMeter, type ContextUsage } from './context-meter';
@@ -30,7 +31,9 @@ function App() {
   }, []);
   if (!state) return <div className="app"><p className="connecting" role="status">Connecting to your workspace…</p></div>;
   // Each conversation owns its draft/outbox closures, even if an old request finishes late.
-  return <Chat key={state.sessionId || 'initial'} state={state} connected={connected} />;
+  return <ReaderLayout busy={state.busy}>
+    <Chat key={state.sessionId || 'initial'} state={state} connected={connected} />
+  </ReaderLayout>;
 }
 
 function Chat({ state, connected }: { state: State; connected: boolean }) {
