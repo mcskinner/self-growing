@@ -14,6 +14,8 @@ Keep a few observable acceptance scenarios with an adaptation. For each, record 
 
 For a reader/chat combination, examples include opening a document, reading it beside usable chat, exercising menu controls, sending and receiving a message, and checking a narrow viewport. Some steps can use deterministic fixtures; costly or live checks should be labeled and explicitly authorized. An applier may need to translate selectors or setup for the target rather than copy a source-specific script unchanged.
 
+The user refined this toward a **recipe for writing a Playwright test**, rather than screenshots as primary proof. A recipe can prescribe actions, observable assertions, fixtures, and assumptions while letting the recipient choose target-specific selectors and setup. Screenshots are supporting/debugging artifacts, not a substitute for behavioral assertions. The recipe still needs to distinguish mocked chat from a live interaction.
+
 ## Tensions
 
 - Prescriptive UI scripts can overfit the source layout and undermine [minimal instructions](minimal-instructions-and-hardening.md).

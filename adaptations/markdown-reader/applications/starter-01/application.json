@@ -1,0 +1,17 @@
+{
+  "format": 1,
+  "adaptation": "markdown-reader",
+  "adaptation_path": "/Users/michael/dev/self-growing/adaptations/markdown-reader",
+  "adaptation_source_head": "898db55839fad721fd9d5d6158e8c93440ac6323",
+  "description_sha256": "913f67a1334b51abd954d24ee6c47ddd99d11110f291cd5d3ea24061275c92d5",
+  "base": "6116d82c7bcb1ed49af5b9a1b0edd41c045ad4e8",
+  "worktree": "/Users/michael/dev/self-growing-reader-starter-01",
+  "feedback": "feedback.md",
+  "head": "ca789b436654e3b9054d9e78befaf25b6bc82ef7",
+  "commits": [
+    "ca789b436654e3b9054d9e78befaf25b6bc82ef7"
+  ],
+  "commit_links": [
+    "https://github.com/mcskinner/self-growing/commit/ca789b436654e3b9054d9e78befaf25b6bc82ef7"
+  ]
+}

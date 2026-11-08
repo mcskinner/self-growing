@@ -1,0 +1,74 @@
+import { chromium } from '/Users/michael/dev/self-growing-reader-starter-01/node_modules/playwright/index.mjs';
+import { readFile } from 'node:fs/promises';
+import assert from 'node:assert/strict';
+const root = '/Users/michael/dev/self-growing-reader-starter-01/dist';
+const browser = await chromium.launch({headless:true});
+const page = await browser.newPage({viewport:{width:1280,height:850}});
+const errors=[]; page.on('pageerror',e=>errors.push(e.message));
+let content = '# Reader title\n\nParagraph **bold** [link](https://example.com).\n\n> quote\n\n- item\n\n| A | B |\n|---|---|\n| x | y |\n\n```\n'+ 'wide'.repeat(250)+'\n```\n\n'+('Paragraph.\n\n'.repeat(180))+'<img src="https://evil.test/pixel"><script>alert(1)</script>';
+let reads=0, fail=false, selection=null, hold=false, requests=[];
+await page.addInitScript(()=>{
+  window.__state={messages:[],busy:false,error:null,activity:'',steering:[],context:null,sessionId:'one'};
+  window.EventSource=class {constructor(){window.__events=this;setTimeout(()=>this.onmessage?.({data:JSON.stringify(window.__state)}),0)} close(){}};
+  window.__emit=(patch)=>{Object.assign(window.__state,patch);window.__events.onmessage({data:JSON.stringify(window.__state)})};
+});
+await page.route('**/*',async route=>{
+ const u=new URL(route.request().url()); requests.push(u.href);
+ if(u.host!=='reader.test') return route.abort();
+ if(u.pathname==='/api/documents/content'){
+  reads++;if(hold) await new Promise(r=>setTimeout(r,200));
+  return route.fulfill({status:fail?422:200,json:fail?{detail:'Test read error'}:{path:u.searchParams.get('path'),name:'notes.md',content}});
+ }
+ if(u.pathname==='/api/documents/pick')return route.fulfill({json:{path:selection}});
+ if(u.pathname==='/api/chat')return route.fulfill({json:{disposition:'started'}});
+ if(u.pathname==='/api/stop')return route.fulfill({json:{steering:[],followUp:[]}});
+ if(u.pathname==='/api/session/new')return route.fulfill({json:{messages:[],busy:false,error:null,activity:'',steering:[],context:null,sessionId:'two'}});
+ const path=u.pathname==='/'?'/index.html':u.pathname;
+ return route.fulfill({body:await readFile(root+path),contentType:path.endsWith('.js')?'text/javascript':path.endsWith('.css')?'text/css':'text/html'});
+});
+try {
+ await page.goto('https://reader.test');
+ await page.getByRole('textbox',{name:'Message Pi'}).fill('Draft stays here');
+ await page.getByRole('button',{name:'Open Markdown',exact:true}).click();
+ await page.getByLabel('File path (.md or .markdown)').fill('/outside/notes.md');
+ hold=true; await page.getByRole('button',{name:'Open',exact:true}).click();
+ await page.getByText('Loading Markdown…').waitFor(); hold=false;
+ await page.getByRole('heading',{name:'Reader title'}).waitFor();
+ assert.equal(await page.getByRole('textbox',{name:'Message Pi'}).inputValue(),'Draft stays here');
+ assert.equal(await page.locator('article img, article script').count(),0);
+ assert.equal(requests.some(url=>url.includes('evil.test')),false);
+ assert.ok(await page.locator('.document-pane').evaluate(el=>el.scrollHeight>el.clientHeight));
+ assert.ok(await page.locator('article pre').evaluate(el=>el.scrollWidth>el.clientWidth));
+ assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+ const divider=page.getByRole('separator');
+ await divider.focus(); await page.keyboard.press('ArrowLeft'); assert.equal(await divider.getAttribute('aria-valuenow'),'53');
+ const box=await divider.boundingBox(); await page.mouse.move(box.x+4,box.y+50); await page.mouse.down(); await page.mouse.move(600,box.y+50); await page.mouse.up();
+ const width=await divider.getAttribute('aria-valuenow'); assert.notEqual(width,'53');
+ await page.getByRole('button',{name:'Choose another Markdown'}).click();
+ await page.getByRole('button',{name:'Browse local files…'}).click();
+ await page.getByRole('button',{name:'Cancel',exact:true}).click();
+ assert.ok(await page.getByRole('heading',{name:'Reader title'}).isVisible());
+ await page.reload(); await page.getByRole('heading',{name:'Reader title'}).waitFor();
+ assert.equal(await divider.getAttribute('aria-valuenow'),width);
+ assert.equal(await page.getByRole('textbox',{name:'Message Pi'}).inputValue(),'Draft stays here');
+ let before=reads; await page.evaluate(()=>window.__emit({busy:true})); content='# Updated by agent';
+ await page.evaluate(()=>window.__emit({busy:false})); await page.getByRole('heading',{name:'Updated by agent'}).waitFor(); assert.ok(reads>before);
+ fail=true; await page.getByRole('button',{name:'Refresh',exact:true}).click(); await page.getByText('Error: Test read error').waitFor();
+ fail=false; await page.getByRole('button',{name:'Retry',exact:true}).click(); await page.getByText('Error: Test read error').waitFor({state:'hidden'});
+ await page.getByRole('textbox',{name:'Message Pi'}).fill('hello'); await page.getByRole('button',{name:'Send message'}).click();
+ await page.waitForTimeout(100); assert.ok(requests.some(url=>url.endsWith('/api/chat')));
+ await page.evaluate(()=>window.__emit({busy:true}));
+ await page.getByRole('textbox',{name:'Message Pi'}).fill('steer'); await page.getByRole('button',{name:'Steer Pi'}).click();
+ await page.getByRole('button',{name:'Stop Pi and pause unsent messages'}).click();
+ await page.waitForTimeout(100); assert.ok(requests.some(url=>url.endsWith('/api/stop')));
+ await page.evaluate(()=>window.__emit({busy:false,sessionId:'other'}));
+ assert.ok(await page.getByRole('heading',{name:'Updated by agent'}).isVisible());
+ await page.setViewportSize({width:390,height:844});
+ assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+ assert.ok(await page.getByRole('textbox',{name:'Message Pi'}).isVisible());
+ assert.ok(await page.getByRole('heading',{name:'Updated by agent'}).isVisible());
+ await page.getByRole('button',{name:'Close reader'}).click(); assert.equal(await page.locator('.document-pane').count(),0);
+ assert.equal(await page.locator('.chat-pane').evaluate(el=>Math.round(el.getBoundingClientRect().width)),390);
+ assert.deepEqual(errors,[]);
+ console.log('PASS: isolated Chromium reader, sanitizer/network, pane sizing, storage/reload, cancellation, loading/error/retry, refresh, chat send/steer/stop, session independence, narrow layout, close.');
+} finally { await browser.close(); }

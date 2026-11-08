@@ -1,0 +1,1132 @@
+diff --git a/README.md b/README.md
+index 27930e7..7ce6769 100644
+--- a/README.md
++++ b/README.md
+@@ -91,6 +91,21 @@ WEB_PORT=5177 API_PORT=8107 ./install.sh
+ `PI_BIN` can point to a different Pi executable. Python is pinned to the 3.13 series;
+ uv can install it if needed. Ctrl+C stops the dev servers.
+ 
++## Read local Markdown
++
++Use **Open Markdown** to choose an original file (native chooser on macOS), or enter
++its local path. Absolute paths may point outside this workspace; relative paths must
++remain inside it after symlink resolution. Files must be UTF-8 `.md` or `.markdown`,
++at most 2 MB. Reading never imports, edits, or adds metadata to the original.
++
++The reader stays open when switching chats and remembers its path for this browser tab.
++Drag the desktop divider, or focus it and use Left/Right (Home/End for limits), to resize;
++narrow screens stack reader above chat. **Close document** restores chat alone.
++Documents refresh after agent work, or with **Refresh**. Images and embedded resources
++are omitted; external web/email links open only when clicked. Relative links do not
++open other files—choose those explicitly. This remains a trusted, local-only app, not
++a hosted filesystem sandbox.
++
+ ## How it works
+ 
+ - **React + Vite** provide the app shell and live frontend updates.
+diff --git a/backend/app.py b/backend/app.py
+index a6058a8..d1004fe 100644
+--- a/backend/app.py
++++ b/backend/app.py
+@@ -10,6 +10,7 @@ from fastapi.responses import StreamingResponse
+ from pydantic import BaseModel, Field
+ from starlette.middleware.trustedhost import TrustedHostMiddleware
+ 
++from backend.documents import router as documents_router
+ from backend.history import saved_sessions, session_file, title
+ from backend.pi import connect, select_session
+ 
+@@ -223,6 +224,7 @@ async def lifespan(app):
+ 
+ 
+ app = FastAPI(lifespan=lifespan)
++app.include_router(documents_router)
+ app.add_middleware(TrustedHostMiddleware, allowed_hosts=["localhost", "127.0.0.1", "testserver"])
+ 
+ 
+diff --git a/backend/documents.py b/backend/documents.py
+new file mode 100644
+index 0000000..9e08996
+--- /dev/null
++++ b/backend/documents.py
+@@ -0,0 +1,70 @@
++"""Read original local Markdown files; never import or write document state."""
++
++import asyncio
++import stat
++import sys
++from pathlib import Path
++
++from fastapi import APIRouter, HTTPException, Query
++
++router = APIRouter(prefix="/api/documents")
++MAX_BYTES = 2_000_000
++
++
++def read_document(value: str):
++    try:
++        requested = Path(value).expanduser()
++        path = requested.resolve()
++        if not requested.is_absolute() and not path.is_relative_to(Path.cwd().resolve()):
++            raise HTTPException(403, "Relative path leaves the workspace")
++        if path.suffix.lower() not in {".md", ".markdown"}:
++            raise HTTPException(422, "Choose a .md or .markdown file")
++        if not stat.S_ISREG(path.stat().st_mode):
++            raise HTTPException(422, "Choose a regular Markdown file")
++        with path.open("rb") as source:
++            data = source.read(MAX_BYTES + 1)
++        if len(data) > MAX_BYTES:
++            raise HTTPException(413, "Markdown files must be at most 2 MB")
++        return {"path": str(path), "name": path.name, "content": data.decode("utf-8")}
++    except UnicodeDecodeError as exc:
++        raise HTTPException(422, "Markdown must be UTF-8") from exc
++    except (OSError, ValueError) as exc:
++        raise HTTPException(404, "Cannot read this Markdown file") from exc
++
++
++@router.get("")
++def content(path: str = Query(min_length=1, max_length=4096)):
++    return read_document(path)
++
++
++async def choose_markdown_file():
++    if sys.platform != "darwin":
++        raise HTTPException(501, "Native chooser unavailable; enter a local path instead")
++    process = await asyncio.create_subprocess_exec(
++        "osascript",
++        "-e",
++        'try\nPOSIX path of (choose file with prompt "Open Markdown" '
++        'of type {"md", "markdown"})\non error number -128\nreturn ""\nend try',
++        stdout=asyncio.subprocess.PIPE,
++        stderr=asyncio.subprocess.PIPE,
++    )
++    try:
++        stdout, _ = await asyncio.wait_for(process.communicate(), timeout=120)
++    except (TimeoutError, asyncio.CancelledError):
++        process.kill()
++        await process.wait()
++        raise
++    if process.returncode:
++        raise HTTPException(503, "File chooser failed; enter a local path instead")
++    return stdout.decode("utf-8").strip() or None
++
++
++@router.post("/choose")
++async def choose():
++    try:
++        path = await choose_markdown_file()
++    except TimeoutError as exc:
++        raise HTTPException(408, "File chooser timed out; try again") from exc
++    except OSError as exc:
++        raise HTTPException(503, "File chooser unavailable; enter a local path instead") from exc
++    return {"path": path}
+diff --git a/frontend/documents.tsx b/frontend/documents.tsx
+new file mode 100644
+index 0000000..26c84e4
+--- /dev/null
++++ b/frontend/documents.tsx
+@@ -0,0 +1,109 @@
++import { useEffect, useRef, useState, type ReactNode } from 'react';
++import { renderMarkdown } from './markdown';
++
++interface DocumentData { path: string; name: string; content: string }
++const clamp = (value: number) => Math.min(70, Math.max(30, value));
++
++export function ReaderLayout({ busy, children }: { busy: boolean; children: ReactNode }) {
++  const [path, setPath] = useState(() => sessionStorage.getItem('open-document') || '');
++  const [entry, setEntry] = useState('');
++  const [picker, setPicker] = useState(false);
++  const [choosing, setChoosing] = useState(false);
++  const [chooserError, setChooserError] = useState('');
++  const [data, setData] = useState<DocumentData | null>(null);
++  const [html, setHtml] = useState('');
++  const [error, setError] = useState('');
++  const [loading, setLoading] = useState(false);
++  const [retry, setRetry] = useState(0);
++  const [width, setWidth] = useState(() => {
++    const saved = Number(localStorage.getItem('reader-width') || 50);
++    return Number.isFinite(saved) ? clamp(saved) : 50;
++  });
++  const panes = useRef<HTMLDivElement>(null);
++  const previousBusy = useRef(busy);
++  const choiceVersion = useRef(0);
++
++  useEffect(() => {
++    if (previousBusy.current && !busy) setRetry(value => value + 1);
++    previousBusy.current = busy;
++  }, [busy]);
++  useEffect(() => { localStorage.setItem('reader-width', String(width)); }, [width]);
++  useEffect(() => {
++    sessionStorage.setItem('open-document', path);
++    setData(null); setHtml(''); setError('');
++    if (!path) { setLoading(false); return; }
++    const controller = new AbortController();
++    setLoading(true);
++    void (async () => {
++      try {
++        const response = await fetch(`/api/documents?path=${encodeURIComponent(path)}`, { signal: controller.signal });
++        const result = await response.json();
++        if (!response.ok) throw new Error(result.detail || 'Could not read Markdown');
++        if (controller.signal.aborted) return;
++        setHtml(renderMarkdown(result.content)); setData(result);
++      } catch (err) {
++        if (!controller.signal.aborted) setError(String(err));
++      } finally { if (!controller.signal.aborted) setLoading(false); }
++    })();
++    return () => controller.abort();
++  }, [path, retry]);
++
++  function open(value: string) {
++    choiceVersion.current++;
++    setPath(value); setRetry(count => count + 1); setPicker(false); setChooserError('');
++  }
++  async function choose() {
++    const version = ++choiceVersion.current;
++    setChoosing(true); setChooserError('');
++    try {
++      const response = await fetch('/api/documents/choose', { method: 'POST' });
++      const result = await response.json();
++      if (version !== choiceVersion.current) return;
++      if (!response.ok) throw new Error(result.detail || 'Could not choose a file');
++      if (result.path) open(result.path);
++    } catch (err) { if (version === choiceVersion.current) setChooserError(String(err)); }
++    finally { setChoosing(false); }
++  }
++
++  return <div className="reader-shell">
++    <div className="reader-toolbar">
++      <button className="quiet-button" onClick={() => { setPicker(value => !value); setChooserError(''); }}
++        aria-expanded={picker}>Open Markdown</button>
++      {path && <><span className="document-path" title={data?.path || path}>{data?.path || path}</span>
++        <button className="quiet-button" onClick={() => setRetry(value => value + 1)}>Refresh</button>
++        <button className="quiet-button" onClick={() => { choiceVersion.current++; setPath(''); }}>Close document</button></>}
++    </div>
++    {picker && <div className="document-picker">
++      <button className="quiet-button" disabled={choosing} onClick={() => void choose()}>{choosing ? 'Choosing…' : 'Choose local file…'}</button>
++      <form onSubmit={event => { event.preventDefault(); if (entry.trim()) open(entry.trim()); }}>
++        <label htmlFor="document-path">Or local path</label>
++        <input id="document-path" value={entry} onChange={event => setEntry(event.target.value)} placeholder="/path/to/file.md" />
++        <button className="quiet-button" disabled={!entry.trim()}>Open</button>
++      </form>
++      <button className="quiet-button" onClick={() => { choiceVersion.current++; setPicker(false); }}>Cancel</button>
++      {chooserError && <p className="error" role="alert">{chooserError} <button className="quiet-button" disabled={choosing} onClick={() => void choose()}>Retry</button></p>}
++    </div>}
++    <div className={`reader-panes${path ? ' has-document' : ''}`} ref={panes}>
++      {path && <><section className="document-pane" aria-label="Markdown reader" style={{ flexBasis: `${width}%` }}>
++        {loading && <p className="reader-notice" role="status">Loading Markdown…</p>}
++        {error && <div className="reader-notice error" role="alert">{error} <button className="quiet-button" onClick={() => setRetry(value => value + 1)}>Retry</button></div>}
++        {data && <article className="markdown-document" dangerouslySetInnerHTML={{ __html: html }} />}
++      </section>
++      <div className="reader-separator" role="separator" tabIndex={0} aria-label="Reader width" aria-orientation="vertical"
++        aria-valuemin={30} aria-valuemax={70} aria-valuenow={Math.round(width)} aria-controls="reader-chat"
++        onPointerDown={event => { event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId); }}
++        onPointerMove={event => {
++          if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
++          const rect = panes.current!.getBoundingClientRect();
++          setWidth(clamp((event.clientX - rect.left) / rect.width * 100));
++        }}
++        onPointerUp={event => { if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }}
++        onKeyDown={event => {
++          const values: Record<string, number> = { ArrowLeft: width - 2, ArrowRight: width + 2, Home: 30, End: 70 };
++          if (event.key in values) { event.preventDefault(); setWidth(clamp(values[event.key])); }
++        }} />
++      </>}
++      <div className="reader-chat" id="reader-chat">{children}</div>
++    </div>
++  </div>;
++}
+diff --git a/frontend/main.tsx b/frontend/main.tsx
+index 883fcf9..a8caf75 100644
+--- a/frontend/main.tsx
++++ b/frontend/main.tsx
+@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+ import { createRoot } from 'react-dom/client';
+ import type { Transcript, Message } from './transcript';
+ import { ChatDisplay } from './chat-display';
++import { ReaderLayout } from './documents';
+ import { ChatHistory } from './chat-history';
+ import { chatKey, migrateChatStorage } from './chat-storage';
+ import { ContextMeter, type ContextUsage } from './context-meter';
+@@ -30,7 +31,9 @@ function App() {
+   }, []);
+   if (!state) return <div className="app"><p className="connecting" role="status">Connecting to your workspace…</p></div>;
+   // Each conversation owns its draft/outbox closures, even if an old request finishes late.
+-  return <Chat key={state.sessionId || 'initial'} state={state} connected={connected} />;
++  return <ReaderLayout busy={state.busy}>
++    <Chat key={state.sessionId || 'initial'} state={state} connected={connected} />
++  </ReaderLayout>;
+ }
+ 
+ function Chat({ state, connected }: { state: State; connected: boolean }) {
+diff --git a/frontend/markdown.ts b/frontend/markdown.ts
+new file mode 100644
+index 0000000..835639a
+--- /dev/null
++++ b/frontend/markdown.ts
+@@ -0,0 +1,24 @@
++import DOMPurify from 'dompurify';
++import { marked } from 'marked';
++
++// A small HTML vocabulary also excludes every automatically fetched resource,
++// embedded browsing context, form, style, and document-supplied identifier.
++export function renderMarkdown(source: string): string {
++  const clean = DOMPurify.sanitize(marked.parse(source, { async: false }), {
++    ALLOWED_TAGS: ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'br', 'hr', 'ul', 'ol', 'li',
++      'blockquote', 'pre', 'code', 'em', 'strong', 'del', 'a', 'table', 'thead', 'tbody',
++      'tr', 'th', 'td'],
++    ALLOWED_ATTR: ['href', 'title'],
++    ALLOW_DATA_ATTR: false,
++    ALLOW_ARIA_ATTR: false,
++  });
++  const template = document.createElement('template');
++  template.innerHTML = clean;
++  for (const link of template.content.querySelectorAll('a')) {
++    const href = link.getAttribute('href') || '';
++    // Relative file navigation isn't a file-opening capability. Use the chooser.
++    if (!/^(https?:|mailto:)/i.test(href)) link.removeAttribute('href');
++    else { link.target = '_blank'; link.rel = 'noopener noreferrer'; }
++  }
++  return template.innerHTML;
++}
+diff --git a/frontend/style.css b/frontend/style.css
+index db27163..903ecfe 100644
+--- a/frontend/style.css
++++ b/frontend/style.css
+@@ -118,3 +118,43 @@ button:focus-visible, a:focus-visible { outline: 2px solid #6f8859; outline-offs
+   .footnote span:last-child { display: none; }
+   .desktop { display: none; }
+ }
++
++.reader-shell { height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
++.reader-toolbar { display: flex; align-items: center; gap: 8px; padding: 8px 16px; border-bottom: 1px solid #dce1d3; flex-shrink: 0; flex-wrap: wrap; }
++.document-path { flex: 1; min-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: #78816f; }
++.document-picker { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 12px 16px; border-bottom: 1px solid #dce1d3; }
++.document-picker form { padding: 8px; border-radius: 8px; box-shadow: none; flex-wrap: wrap; align-items: center; max-width: 100%; font-size: 13px; }
++.document-picker input { min-width: 0; flex: 1; font: inherit; padding: 6px; }
++.document-picker .error { margin: 0; }
++.reader-panes { display: flex; flex: 1; min-height: 0; min-width: 0; overflow: hidden; }
++.reader-chat { flex: 1; min-width: 0; min-height: 0; }
++.reader-chat .app { height: 100%; }
++.document-pane { min-width: 0; min-height: 0; overflow: auto; overscroll-behavior: contain; background: #fffefa; }
++.reader-separator { width: 9px; flex-shrink: 0; cursor: col-resize; background: #e6e7de; touch-action: none; }
++.reader-separator:hover, .reader-separator:focus-visible { background: #a5b696; outline: none; }
++.reader-notice { padding: 24px; font-size: 14px; }
++.markdown-document { max-width: 850px; padding: 32px clamp(20px, 3vw, 48px) 80px; margin: auto; line-height: 1.8; overflow-wrap: anywhere; }
++.markdown-document h1 { font-size: 36px; }
++.markdown-document h2, .markdown-document h3, .markdown-document h4 { line-height: 1.3; margin-top: 1.6em; }
++.markdown-document pre { overflow: auto; padding: 16px; background: #f1f2ec; border-radius: 8px; line-height: 1.6; }
++.markdown-document code { font-size: .88em; background: #f1f2ec; }
++.markdown-document pre code { overflow-wrap: normal; }
++.markdown-document blockquote { margin-left: 0; padding-left: 20px; border-left: 3px solid #a5b696; color: #67745e; }
++.markdown-document table { display: block; max-width: 100%; overflow: auto; border-collapse: collapse; }
++.markdown-document th, .markdown-document td { padding: 8px 12px; border: 1px solid #dce1d3; }
++.markdown-document a { color: #4d7138; }
++.has-document header { width: calc(100% - 32px); grid-template-columns: auto 1fr auto; gap: 12px; }
++.has-document .brand .seed, .has-document .connection { display: none; }
++.has-document .footnote span:last-child { display: none; }
++@media (max-width: 800px) {
++  .reader-panes.has-document { flex-direction: column; }
++  .has-document .document-pane { flex: 0 0 42% !important; }
++  .has-document .reader-chat { flex: 1; overflow: hidden; }
++  .reader-separator { display: none; }
++  .reader-toolbar { padding: 6px 8px; gap: 5px; }
++  .reader-toolbar .quiet-button { padding: 6px; font-size: 11px; }
++  .markdown-document { padding-top: 20px; padding-bottom: 24px; }
++  .has-document .welcome { padding: 20px 0; }
++  .has-document footer { padding-bottom: 8px; }
++  .has-document .footnote { display: none; }
++}
+diff --git a/package-lock.json b/package-lock.json
+index eeab303..e0f86e9 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -15,10 +15,13 @@
+         "react-dom": "^19.2.0"
+       },
+       "devDependencies": {
++        "@types/jsdom": "^30.0.0",
+         "@types/node": "^22.20.5",
+         "@types/react": "^19.2.0",
+         "@types/react-dom": "^19.2.0",
+         "@vitejs/plugin-react": "^5.1.0",
++        "jsdom": "^31.0.0",
++        "tsx": "^4.23.15",
+         "typescript": "^5.9.3",
+         "vite": "^7.2.0"
+       }
+@@ -747,6 +750,24 @@
+         "node": ">=18"
+       }
+     },
++    "node_modules/@exodus/bytes": {
++      "version": "1.16.0",
++      "resolved": "https://registry.npmjs.org/@exodus/bytes/-/bytes-1.16.0.tgz",
++      "integrity": "sha512-IcpW84uEn3N7ETtNZMlxKhfl6Pec8rUNGOTBtWbK1FKhJxIFAptZyVrvVRVBimAJxJCgc3PxepxkdWWG4DVzfA==",
++      "dev": true,
++      "license": "MIT",
++      "engines": {
++        "node": "^20.19.0 || ^22.12.0 || >=24.0.0"
++      },
++      "peerDependencies": {
++        "@noble/hashes": "^1.8.0 || ^2.0.0"
++      },
++      "peerDependenciesMeta": {
++        "@noble/hashes": {
++          "optional": true
++        }
++      }
++    },
+     "node_modules/@jridgewell/gen-mapping": {
+       "version": "0.3.13",
+       "resolved": "https://registry.npmjs.org/@jridgewell/gen-mapping/-/gen-mapping-0.3.13.tgz",
+@@ -1235,6 +1256,26 @@
+       "dev": true,
+       "license": "MIT"
+     },
++    "node_modules/@types/jsdom": {
++      "version": "30.0.0",
++      "resolved": "https://registry.npmjs.org/@types/jsdom/-/jsdom-30.0.0.tgz",
++      "integrity": "sha512-uAHGxujGE0cDaKGdK28zgDotFtNA7MKq5DXl8LrfdxdCI8VHcg15oJz+amHTChPNI5JpgEPQWc2xFdrw3em/nQ==",
++      "dev": true,
++      "license": "MIT",
++      "dependencies": {
++        "@types/node": "*",
++        "@types/tough-cookie": "*",
++        "parse5": "^8.0.0",
++        "undici-types": "^8.9.0"
++      }
++    },
++    "node_modules/@types/jsdom/node_modules/undici-types": {
++      "version": "8.12.4",
++      "resolved": "https://registry.npmjs.org/undici-types/-/undici-types-8.12.4.tgz",
++      "integrity": "sha512-GNCQH3MbVGB8OAVAoTiLH8pu4wx5Ni3DWKpnBzGj3WDsi8EwmK0aOVBooNEt+g5YL1eHPxcS9XUTouwFU6j1kQ==",
++      "dev": true,
++      "license": "MIT"
++    },
+     "node_modules/@types/node": {
+       "version": "22.20.5",
+       "resolved": "https://registry.npmjs.org/@types/node/-/node-22.20.5.tgz",
+@@ -1265,6 +1306,13 @@
+         "@types/react": "^19.3.0"
+       }
+     },
++    "node_modules/@types/tough-cookie": {
++      "version": "4.0.5",
++      "resolved": "https://registry.npmjs.org/@types/tough-cookie/-/tough-cookie-4.0.5.tgz",
++      "integrity": "sha512-/Ad8+nIOV7Rl++6f1BdKxFSMgmoqEoYbHRpPcx3JEfv8VRsQe9Z4mCXeJBzxs7mbHY/XOZZuXlRNfhpVPbs6ZA==",
++      "dev": true,
++      "license": "MIT"
++    },
+     "node_modules/@types/trusted-types": {
+       "version": "2.0.7",
+       "resolved": "https://registry.npmjs.org/@types/trusted-types/-/trusted-types-2.0.7.tgz",
+@@ -1305,6 +1353,33 @@
+         "node": ">=6.0.0"
+       }
+     },
++    "node_modules/bcp-47": {
++      "version": "2.1.2",
++      "resolved": "https://registry.npmjs.org/bcp-47/-/bcp-47-2.1.2.tgz",
++      "integrity": "sha512-wsv86UuNFuPnVieKLyECTT+CP1WSAHeoIg5P3xu2kA9Z+7fVPoKt7dxzSeEhtJel0AI+NW3fIW3KtTKQKUCngg==",
++      "dev": true,
++      "license": "MIT",
++      "dependencies": {
++        "is-alphabetical": "^2.0.0",
++        "is-alphanumerical": "^2.0.0",
++        "is-decimal": "^2.0.0"
++      },
++      "funding": {
++        "type": "github",
++        "url": "https://github.com/sponsors/wooorm"
++      }
++    },
++    "node_modules/bcp-47-match": {
++      "version": "2.0.3",
++      "resolved": "https://registry.npmjs.org/bcp-47-match/-/bcp-47-match-2.0.3.tgz",
++      "integrity": "sha512-JtTezzbAibu8G0R9op9zb3vcWZd9JF6M0xOYGPn0fNCd7wOpRB1mU2mH9T8gaBGbAAyIIVgB2G7xG0GP98zMAQ==",
++      "dev": true,
++      "license": "MIT",
++      "funding": {
++        "type": "github",
++        "url": "https://github.com/sponsors/wooorm"
++      }
++    },
+     "node_modules/browserslist": {
+       "version": "4.29.5",
+       "resolved": "https://registry.npmjs.org/browserslist/-/browserslist-4.29.5.tgz",
+@@ -1374,6 +1449,20 @@
+       "dev": true,
+       "license": "MIT"
+     },
++    "node_modules/data-urls": {
++      "version": "8.0.0",
++      "resolved": "https://registry.npmjs.org/data-urls/-/data-urls-8.0.0.tgz",
++      "integrity": "sha512-JQUCCK+/CAGbGGx618PlFZMXH81Jtj7t73CHv9dd/zVWvxgGT2zLFRjnKb+Ng46GIwcy+f7f88qd4duqllK+WQ==",
++      "dev": true,
++      "license": "MIT",
++      "dependencies": {
++        "whatwg-mimetype": "^5.0.0",
++        "whatwg-url": "^17.1.2"
++      },
++      "engines": {
++        "node": "^22.14.0 || >=24.0.0"
++      }
++    },
+     "node_modules/debug": {
+       "version": "4.4.3",
+       "resolved": "https://registry.npmjs.org/debug/-/debug-4.4.3.tgz",
+@@ -1392,6 +1481,13 @@
+         }
+       }
+     },
++    "node_modules/decimal.js": {
++      "version": "10.6.0",
++      "resolved": "https://registry.npmjs.org/decimal.js/-/decimal.js-10.6.0.tgz",
++      "integrity": "sha512-YpgQiITW3JXGntzdUmyUR1V812Hn8T1YVXhCu+wO3OpS4eU9l4YdD3qjyiKdV6mvV29zapkMeD390UVEf2lkUg==",
++      "dev": true,
++      "license": "MIT"
++    },
+     "node_modules/dompurify": {
+       "version": "3.4.17",
+       "resolved": "https://registry.npmjs.org/dompurify/-/dompurify-3.4.17.tgz",
+@@ -1408,6 +1504,19 @@
+       "dev": true,
+       "license": "ISC"
+     },
++    "node_modules/entities": {
++      "version": "9.0.0",
++      "resolved": "https://registry.npmjs.org/entities/-/entities-9.0.0.tgz",
++      "integrity": "sha512-oJFNDJg3kTPwAD1cNn2+WmUq4wFoo09npc3Ydf1D7ED4smRiWrsKnaLxykrTWgyGEcusc87P5dxlAleol9kpkg==",
++      "dev": true,
++      "license": "BSD-2-Clause",
++      "engines": {
++        "node": ">=20.19.0"
++      },
++      "funding": {
++        "url": "https://github.com/fb55/entities?sponsor=1"
++      }
++    },
+     "node_modules/esbuild": {
+       "version": "0.28.2",
+       "resolved": "https://registry.npmjs.org/esbuild/-/esbuild-0.28.2.tgz",
+@@ -1503,6 +1612,63 @@
+         "node": ">=6.9.0"
+       }
+     },
++    "node_modules/html-encoding-sniffer": {
++      "version": "7.0.0",
++      "resolved": "https://registry.npmjs.org/html-encoding-sniffer/-/html-encoding-sniffer-7.0.0.tgz",
++      "integrity": "sha512-UikN5yr7xsCDAq87Or5or0PAlD3HJJOKVzM05az588WnpDJ4Ux7a2A53Qi6gofGg2/EtvF/H4hCi/TXfCW4Y6w==",
++      "dev": true,
++      "license": "MIT",
++      "dependencies": {
++        "@exodus/bytes": "^1.15.1"
++      },
++      "engines": {
++        "node": "^22.13.0 || >=24.0.0"
++      }
++    },
++    "node_modules/is-alphabetical": {
++      "version": "2.0.1",
++      "resolved": "https://registry.npmjs.org/is-alphabetical/-/is-alphabetical-2.0.1.tgz",
++      "integrity": "sha512-FWyyY60MeTNyeSRpkM2Iry0G9hpr7/9kD40mD/cGQEuilcZYS4okz8SN2Q6rLCJ8gbCt6fN+rC+6tMGS99LaxQ==",
++      "dev": true,
++      "license": "MIT",
++      "funding": {
++        "type": "github",
++        "url": "https://github.com/sponsors/wooorm"
++      }
++    },
++    "node_modules/is-alphanumerical": {
++      "version": "2.0.1",
++      "resolved": "https://registry.npmjs.org/is-alphanumerical/-/is-alphanumerical-2.0.1.tgz",
++      "integrity": "sha512-hmbYhX/9MUMF5uh7tOXyK/n0ZvWpad5caBA17GsC6vyuCqaWliRG5K1qS9inmUhEMaOBIW7/whAnSwveW/LtZw==",
++      "dev": true,
++      "license": "MIT",
++      "dependencies": {
++        "is-alphabetical": "^2.0.0",
++        "is-decimal": "^2.0.0"
++      },
++      "funding": {
++        "type": "github",
++        "url": "https://github.com/sponsors/wooorm"
++      }
++    },
++    "node_modules/is-decimal": {
++      "version": "2.0.1",
++      "resolved": "https://registry.npmjs.org/is-decimal/-/is-decimal-2.0.1.tgz",
++      "integrity": "sha512-AAB9hiomQs5DXWcRB1rqsxGUstbRroFOPPVAomNk/3XHR5JyEZChOyTWe2oayKnsSsr/kcGqF+z6yuH6HHpN0A==",
++      "dev": true,
++      "license": "MIT",
++      "funding": {
++        "type": "github",
++        "url": "https://github.com/sponsors/wooorm"
++      }
++    },
++    "node_modules/is-potential-custom-element-name": {
++      "version": "1.0.1",
++      "resolved": "https://registry.npmjs.org/is-potential-custom-element-name/-/is-potential-custom-element-name-1.0.1.tgz",
++      "integrity": "sha512-bCYeRA2rVibKZd+s2625gGnGF/t7DSqDs4dP7CrLA1m7jKWz6pps0LpYLJN8Q64HtmPKJ1hrN3nzPNKFEKOUiQ==",
++      "dev": true,
++      "license": "MIT"
++    },
+     "node_modules/js-tokens": {
+       "version": "4.0.0",
+       "resolved": "https://registry.npmjs.org/js-tokens/-/js-tokens-4.0.0.tgz",
+@@ -1510,6 +1676,54 @@
+       "dev": true,
+       "license": "MIT"
+     },
++    "node_modules/jsdom": {
++      "version": "31.0.0",
++      "resolved": "https://registry.npmjs.org/jsdom/-/jsdom-31.0.0.tgz",
++      "integrity": "sha512-xAkhD9z1eyFC5+QUi9K24CaZJgdCQ2GOGLW1GdVDoQvkp/AxEH9TQ0pAplPOlIiV92hfcgnFOADZypbjgbBT6Q==",
++      "dev": true,
++      "license": "MIT",
++      "dependencies": {
++        "@exodus/bytes": "^1.16.0",
++        "bcp-47": "^2.1.2",
++        "bcp-47-match": "^2.0.3",
++        "data-urls": "^8.0.0",
++        "decimal.js": "^10.6.0",
++        "html-encoding-sniffer": "^7.0.0",
++        "is-potential-custom-element-name": "^1.0.1",
++        "lru-cache": "^11.5.3",
++        "parse5": "^8.1.0",
++        "parse5-parser-stream": "^8.1.0",
++        "saxes": "^6.0.0",
++        "tough-cookie": "^6.0.2",
++        "undici": "^8.12.3",
++        "w3c-xmlserializer": "^6.0.0",
++        "webidl-conversions": "^8.0.1",
++        "whatwg-mimetype": "^5.0.0",
++        "whatwg-url": "^17.3.0",
++        "xml-name-validator": "^5.0.0"
++      },
++      "engines": {
++        "node": "^22.22.2 || ^24.15.0 || >=26.0.0"
++      },
++      "peerDependencies": {
++        "@napi-rs/canvas": "^1.0.13"
++      },
++      "peerDependenciesMeta": {
++        "@napi-rs/canvas": {
++          "optional": true
++        }
++      }
++    },
++    "node_modules/jsdom/node_modules/lru-cache": {
++      "version": "11.5.3",
++      "resolved": "https://registry.npmjs.org/lru-cache/-/lru-cache-11.5.3.tgz",
++      "integrity": "sha512-U4N8FgzmWxc8k1VH8Kr6lQg18U7Fjvby6wXHVRX/ZZ7IwWbRMgrRbP0Wrb5q5NVinryp4SQampHKdvtecItxUg==",
++      "dev": true,
++      "license": "BlueOak-1.0.0",
++      "engines": {
++        "node": "20 || >=22"
++      }
++    },
+     "node_modules/jsesc": {
+       "version": "3.1.0",
+       "resolved": "https://registry.npmjs.org/jsesc/-/jsesc-3.1.0.tgz",
+@@ -1625,6 +1839,32 @@
+         "node": ">=18"
+       }
+     },
++    "node_modules/parse5": {
++      "version": "8.1.1",
++      "resolved": "https://registry.npmjs.org/parse5/-/parse5-8.1.1.tgz",
++      "integrity": "sha512-EcR/6WDcU7b2N3vQSxKALCk9lXGtUMQxXio008OEMBE0kavu/7JLfBEeFPzi43nMqVDSbEn3QCK+BMCc9zO//w==",
++      "dev": true,
++      "license": "MIT",
++      "dependencies": {
++        "entities": "^9.0.0"
++      },
++      "funding": {
++        "url": "https://github.com/inikulin/parse5?sponsor=1"
++      }
++    },
++    "node_modules/parse5-parser-stream": {
++      "version": "8.1.1",
++      "resolved": "https://registry.npmjs.org/parse5-parser-stream/-/parse5-parser-stream-8.1.1.tgz",
++      "integrity": "sha512-hMcVbbUJcQmP8rURWUdYrT1flRiBiBVjq/RYGguJpDUgIXSqdYKlE0CxthmdMWoSlBAuL5bUBa73g0pttSy7Hw==",
++      "dev": true,
++      "license": "MIT",
++      "dependencies": {
++        "parse5": "^8.1.1"
++      },
++      "funding": {
++        "url": "https://github.com/inikulin/parse5?sponsor=1"
++      }
++    },
+     "node_modules/picocolors": {
+       "version": "1.1.1",
+       "resolved": "https://registry.npmjs.org/picocolors/-/picocolors-1.1.1.tgz",
+@@ -1674,6 +1914,16 @@
+         "node": "^10 || ^12 || >=14"
+       }
+     },
++    "node_modules/punycode": {
++      "version": "2.3.1",
++      "resolved": "https://registry.npmjs.org/punycode/-/punycode-2.3.1.tgz",
++      "integrity": "sha512-vYt7UD1U9Wg6138shLtLOvdAu+8DsC/ilFtEVHcH+wydcSpNE20AfSOduf6MkRFahL5FY7X1oU7nKVZFtfq8Fg==",
++      "dev": true,
++      "license": "MIT",
++      "engines": {
++        "node": ">=6"
++      }
++    },
+     "node_modules/react": {
+       "version": "19.3.1",
+       "resolved": "https://registry.npmjs.org/react/-/react-19.3.1.tgz",
+@@ -1751,6 +2001,19 @@
+         "fsevents": "~2.3.2"
+       }
+     },
++    "node_modules/saxes": {
++      "version": "6.0.0",
++      "resolved": "https://registry.npmjs.org/saxes/-/saxes-6.0.0.tgz",
++      "integrity": "sha512-xAg7SOnEhrm5zI3puOOKyy1OMcMlIJZYNJY7xLBwSze0UjhPLnWfj2GF2EpT0jmzaJKIWKHLsaSSajf35bcYnA==",
++      "dev": true,
++      "license": "ISC",
++      "dependencies": {
++        "xmlchars": "^2.2.0"
++      },
++      "engines": {
++        "node": ">=v12.22.7"
++      }
++    },
+     "node_modules/scheduler": {
+       "version": "0.28.0",
+       "resolved": "https://registry.npmjs.org/scheduler/-/scheduler-0.28.0.tgz",
+@@ -1794,6 +2057,71 @@
+         "url": "https://github.com/sponsors/SuperchupuDev"
+       }
+     },
++    "node_modules/tldts": {
++      "version": "7.4.19",
++      "resolved": "https://registry.npmjs.org/tldts/-/tldts-7.4.19.tgz",
++      "integrity": "sha512-48dH6aSpQnpbzDUc4vIQZ1VjB8tkK+e8c1yx05/SZK+rkssgjEOlxDd/yU8/a4vGYQ9vRgJr9dwMq9TJ0b3X2Q==",
++      "dev": true,
++      "license": "MIT",
++      "dependencies": {
++        "tldts-core": "^7.4.19"
++      },
++      "bin": {
++        "tldts": "bin/cli.js"
++      }
++    },
++    "node_modules/tldts-core": {
++      "version": "7.4.20",
++      "resolved": "https://registry.npmjs.org/tldts-core/-/tldts-core-7.4.20.tgz",
++      "integrity": "sha512-C630TWXZCZmLq0F2bW4QqwnaaxCQ/svpAqvJwnC4JvgEM5ohhBnGsEzTLSOXcN+xjz+kEaHS5uoWIw2klnqd0A==",
++      "dev": true,
++      "license": "MIT"
++    },
++    "node_modules/tough-cookie": {
++      "version": "6.1.0",
++      "resolved": "https://registry.npmjs.org/tough-cookie/-/tough-cookie-6.1.0.tgz",
++      "integrity": "sha512-FTxc8u8Kl2tz0Lat1u8ksvcy8bwHRyEMawwTWybo51JqaC6O7SvfuhAKg+Ld6VqyIe2QRJBzY9HA7y2WyFRT2w==",
++      "dev": true,
++      "license": "BSD-3-Clause",
++      "dependencies": {
++        "tldts": "^7.0.5"
++      },
++      "engines": {
++        "node": ">=16"
++      }
++    },
++    "node_modules/tr46": {
++      "version": "7.0.0",
++      "resolved": "https://registry.npmjs.org/tr46/-/tr46-7.0.0.tgz",
++      "integrity": "sha512-BcDSDW+SIGWVOns1Zm6Yg91q9AEj7eaID0QDY9oIqJD1A8dscNwMcl9Sms2DeuWCNov1X0/oXanHGYQBSLwZsg==",
++      "dev": true,
++      "license": "MIT",
++      "dependencies": {
++        "punycode": "^2.3.1"
++      },
++      "engines": {
++        "node": "^22.14.0 || >=24.0.0"
++      }
++    },
++    "node_modules/tsx": {
++      "version": "4.23.15",
++      "resolved": "https://registry.npmjs.org/tsx/-/tsx-4.23.15.tgz",
++      "integrity": "sha512-Yiex1Ovn8z2xPpOWckIiysV1SSyRMY9BkLF++q0yKiDxCqRhosKfMg3janKkiLBwZ5c/YryloKwGZcrEmtwxKw==",
++      "dev": true,
++      "license": "MIT",
++      "dependencies": {
++        "esbuild": "~0.28.0"
++      },
++      "bin": {
++        "tsx": "dist/cli.mjs"
++      },
++      "engines": {
++        "node": ">=18.0.0"
++      },
++      "optionalDependencies": {
++        "fsevents": "~2.3.3"
++      }
++    },
+     "node_modules/typescript": {
+       "version": "5.9.3",
+       "resolved": "https://registry.npmjs.org/typescript/-/typescript-5.9.3.tgz",
+@@ -1808,6 +2136,16 @@
+         "node": ">=14.17"
+       }
+     },
++    "node_modules/undici": {
++      "version": "8.12.4",
++      "resolved": "https://registry.npmjs.org/undici/-/undici-8.12.4.tgz",
++      "integrity": "sha512-8Mx+uNKKER2bA4AdtedkqRbwUCIJFr2nJckXRe5yrDqzePqwLP7VNcctN8/XdmDSbF7mS+jJKIszlL+vbam1VA==",
++      "dev": true,
++      "license": "MIT",
++      "engines": {
++        "node": ">=22.19.0"
++      }
++    },
+     "node_modules/undici-types": {
+       "version": "6.21.0",
+       "resolved": "https://registry.npmjs.org/undici-types/-/undici-types-6.21.0.tgz",
+@@ -1921,6 +2259,71 @@
+         }
+       }
+     },
++    "node_modules/w3c-xmlserializer": {
++      "version": "6.0.0",
++      "resolved": "https://registry.npmjs.org/w3c-xmlserializer/-/w3c-xmlserializer-6.0.0.tgz",
++      "integrity": "sha512-4Nsy8K5Tr6SPDH9jhKJOHf7ChDrc1zufZTVSF7x72hwuEXBqxqk9G6cK+K2NRUtB3iELRJqjXb4JPDMBjMTl2Q==",
++      "dev": true,
++      "license": "MIT",
++      "dependencies": {
++        "xml-name-validator": "^5.0.0"
++      },
++      "engines": {
++        "node": "^22.22.2 || ^24.15.0 || >=26.0.0"
++      }
++    },
++    "node_modules/webidl-conversions": {
++      "version": "8.0.1",
++      "resolved": "https://registry.npmjs.org/webidl-conversions/-/webidl-conversions-8.0.1.tgz",
++      "integrity": "sha512-BMhLD/Sw+GbJC21C/UgyaZX41nPt8bUTg+jWyDeg7e7YN4xOM05YPSIXceACnXVtqyEw/LMClUQMtMZ+PGGpqQ==",
++      "dev": true,
++      "license": "BSD-2-Clause",
++      "engines": {
++        "node": ">=20"
++      }
++    },
++    "node_modules/whatwg-mimetype": {
++      "version": "5.0.0",
++      "resolved": "https://registry.npmjs.org/whatwg-mimetype/-/whatwg-mimetype-5.0.0.tgz",
++      "integrity": "sha512-sXcNcHOC51uPGF0P/D4NVtrkjSU2fNsm9iog4ZvZJsL3rjoDAzXZhkm2MWt1y+PUdggKAYVoMAIYcs78wJ51Cw==",
++      "dev": true,
++      "license": "MIT",
++      "engines": {
++        "node": ">=20"
++      }
++    },
++    "node_modules/whatwg-url": {
++      "version": "17.3.0",
++      "resolved": "https://registry.npmjs.org/whatwg-url/-/whatwg-url-17.3.0.tgz",
++      "integrity": "sha512-KwOAJrpf+GTgBvcBQJcP38sMF0DsQKdwtG+TxM2pW44P6E5k0hDbWrDmyuJDIF0Uef0aQq0ZoJs+5oI+k8ddhg==",
++      "dev": true,
++      "license": "MIT",
++      "dependencies": {
++        "@exodus/bytes": "^1.16.0",
++        "tr46": "^7.0.0",
++        "webidl-conversions": "^8.0.1"
++      },
++      "engines": {
++        "node": "^22.14.0 || >=24.0.0"
++      }
++    },
++    "node_modules/xml-name-validator": {
++      "version": "5.0.0",
++      "resolved": "https://registry.npmjs.org/xml-name-validator/-/xml-name-validator-5.0.0.tgz",
++      "integrity": "sha512-EvGK8EJ3DhaHfbRlETOWAS5pO9MZITeauHKJyb8wyajUfQUenkIg2MvLDTZ4T/TgIcm3HU0TFBgWWboAZ30UHg==",
++      "dev": true,
++      "license": "Apache-2.0",
++      "engines": {
++        "node": ">=18"
++      }
++    },
++    "node_modules/xmlchars": {
++      "version": "2.2.0",
++      "resolved": "https://registry.npmjs.org/xmlchars/-/xmlchars-2.2.0.tgz",
++      "integrity": "sha512-JZnDKK8B0RCDw84FNdDAIpZK+JuJw+s7Lz8nksI7SIuU3UXJJslUthsi+uWBUYOwPFwW7W7PRLRfUKpxjtjFCw==",
++      "dev": true,
++      "license": "MIT"
++    },
+     "node_modules/yallist": {
+       "version": "3.1.1",
+       "resolved": "https://registry.npmjs.org/yallist/-/yallist-3.1.1.tgz",
+diff --git a/package.json b/package.json
+index 494740c..fa7cc1a 100644
+--- a/package.json
++++ b/package.json
+@@ -7,7 +7,7 @@
+     "dev": "vite --host 127.0.0.1 --strictPort",
+     "build": "tsc --noEmit && vite build",
+     "check": "tsc --noEmit",
+-    "test": "node --experimental-strip-types --test tests/*.test.ts"
++    "test": "node --import tsx --test tests/*.test.ts tests/*.test.tsx"
+   },
+   "dependencies": {
+     "dompurify": "^3.3.0",
+@@ -17,10 +17,13 @@
+     "react-dom": "^19.2.0"
+   },
+   "devDependencies": {
++    "@types/jsdom": "^30.0.0",
+     "@types/node": "^22.20.5",
+     "@types/react": "^19.2.0",
+     "@types/react-dom": "^19.2.0",
+     "@vitejs/plugin-react": "^5.1.0",
++    "jsdom": "^31.0.0",
++    "tsx": "^4.23.15",
+     "typescript": "^5.9.3",
+     "vite": "^7.2.0"
+   }
+diff --git a/tests/documents.test.tsx b/tests/documents.test.tsx
+new file mode 100644
+index 0000000..8e20420
+--- /dev/null
++++ b/tests/documents.test.tsx
+@@ -0,0 +1,93 @@
++import assert from 'node:assert/strict';
++import { test } from 'node:test';
++import { JSDOM } from 'jsdom';
++import React, { act } from 'react';
++import { createRoot } from 'react-dom/client';
++
++const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost' });
++Object.assign(globalThis, {
++  window: dom.window, document: dom.window.document,
++  localStorage: dom.window.localStorage, sessionStorage: dom.window.sessionStorage,
++  IS_REACT_ACT_ENVIRONMENT: true,
++  React, // tsx's test transform uses the classic JSX runtime.
++});
++const { ReaderLayout } = await import('../frontend/documents');
++
++async function click(text: string) {
++  const button = [...document.querySelectorAll('button')].find(button => button.textContent === text);
++  assert.ok(button, text);
++  await act(async () => button.click());
++}
++
++test('document lifecycle stays independent of chat, refreshes after work, and cancels safely', async () => {
++  sessionStorage.setItem('open-document', '/original.md');
++  localStorage.setItem('reader-width', '55');
++  let reads = 0;
++  let choice: string | null = null;
++  let fail = false;
++  const originalFetch = globalThis.fetch;
++  globalThis.fetch = (async (url: string) => {
++    if (url.endsWith('/choose')) return Response.json({ path: choice });
++    reads++;
++    if (fail) return Response.json({ detail: 'Missing file' }, { status: 404 });
++    const path = new URL(url, 'http://localhost').searchParams.get('path');
++    return Response.json({ path, name: 'original.md', content: `# Version ${reads}` });
++  }) as typeof fetch;
++  const root = createRoot(document.getElementById('root')!);
++  const render = async (busy = false, session = 'a') => {
++    await act(async () => root.render(<ReaderLayout busy={busy}><textarea key={session} aria-label="Chat" defaultValue={session} /></ReaderLayout>));
++  };
++  try {
++    await render();
++    assert.match(document.querySelector('article')!.textContent!, /Version 1/);
++    const chat = document.querySelector('textarea');
++    const separator = document.querySelector('[role="separator"]')!;
++    assert.equal(separator.getAttribute('aria-valuenow'), '55');
++    await act(async () => separator.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })));
++    assert.equal(localStorage.getItem('reader-width'), '57');
++    const handle = separator as HTMLElement;
++    let captured = false;
++    handle.setPointerCapture = () => { captured = true; };
++    handle.hasPointerCapture = () => captured;
++    handle.releasePointerCapture = () => { captured = false; };
++    document.querySelector('.reader-panes')!.getBoundingClientRect = () => ({ left: 0, width: 1000 } as DOMRect);
++    await act(async () => {
++      handle.dispatchEvent(new dom.window.MouseEvent('pointerdown', { bubbles: true }));
++      handle.dispatchEvent(new dom.window.MouseEvent('pointermove', { clientX: 650, bubbles: true }));
++      handle.dispatchEvent(new dom.window.MouseEvent('pointerup', { bubbles: true }));
++    });
++    assert.equal(localStorage.getItem('reader-width'), '65');
++    assert.equal(captured, false);
++    await click('Open Markdown');
++    await click('Choose local file…');
++    assert.equal(sessionStorage.getItem('open-document'), '/original.md');
++    assert.equal(document.querySelector('textarea'), chat);
++    assert.equal(reads, 1);
++    await click('Cancel');
++    await render(true);
++    await render(false);
++    assert.equal(reads, 2);
++    await render(false, 'b');
++    assert.ok(document.querySelector('article'));
++    assert.equal(reads, 2);
++    fail = true;
++    await click('Refresh');
++    assert.match(document.querySelector('[role="alert"]')!.textContent!, /Missing file/);
++    fail = false;
++    await click('Retry');
++    assert.ok(document.querySelector('article'));
++    await click('Open Markdown');
++    choice = '/another.markdown';
++    await click('Choose local file…');
++    assert.equal(sessionStorage.getItem('open-document'), '/another.markdown');
++    const currentChat = document.querySelector('textarea');
++    await click('Close document');
++    assert.equal(document.querySelector('article'), null);
++    assert.equal(document.querySelector('[role="separator"]'), null);
++    assert.equal(document.querySelector('textarea'), currentChat);
++    assert.equal(sessionStorage.getItem('open-document'), '');
++  } finally {
++    await act(async () => root.unmount());
++    globalThis.fetch = originalFetch;
++  }
++});
+diff --git a/tests/markdown.test.ts b/tests/markdown.test.ts
+new file mode 100644
+index 0000000..81b51f9
+--- /dev/null
++++ b/tests/markdown.test.ts
+@@ -0,0 +1,52 @@
++import assert from 'node:assert/strict';
++import { test } from 'node:test';
++import { JSDOM } from 'jsdom';
++
++const dom = new JSDOM('');
++Object.assign(globalThis, { window: dom.window, document: dom.window.document });
++const { renderMarkdown } = await import('../frontend/markdown.ts');
++
++test('readable Markdown with no resource loading or active HTML', () => {
++  const html = renderMarkdown(`# Title
++
++Paragraph **strong** and *emphasis*.
++
++- one
++- two
++
++> quote
++
++\`\`\`js
++const x = 1;
++\`\`\`
++
++| A | B |
++| - | - |
++| c | d |
++
++[Safe](https://example.com) [Unsafe](javascript:alert(1))
++![remote](https://example.com/tracker.png)
++<script>alert(1)</script><iframe src="https://example.com"></iframe>
++<style>@import 'https://example.com/style';</style>
++<img src=x onerror=alert(1)><video poster="https://example.com/a"></video>
++<svg><use href="https://example.com/a"/></svg>
++<form><input autofocus></form><link rel=stylesheet href="https://example.com/a">
++<p style="background:url(https://example.com/a)" onclick="alert(1)">Text</p>
++<a href="file:///etc/passwd">local</a><a href="relative.md">relative</a>
++<a href="https://example.com" ping="https://example.com/ping">link</a>`);
++  const result = new JSDOM(html).window.document;
++  for (const tag of ['h1', 'p', 'strong', 'em', 'ul', 'blockquote', 'pre', 'code', 'table']) {
++    assert.ok(result.querySelector(tag), tag);
++  }
++  assert.equal(result.querySelectorAll('script,iframe,style,img,video,svg,form,input,link').length, 0);
++  for (const element of result.querySelectorAll('*')) {
++    for (const attr of element.attributes) assert.ok(['href', 'title', 'target', 'rel'].includes(attr.name));
++  }
++  const links = [...result.querySelectorAll('a[href]')];
++  assert.equal(links.length, 2);
++  for (const link of links) {
++    assert.equal(link.getAttribute('href'), 'https://example.com');
++    assert.equal(link.getAttribute('rel'), 'noopener noreferrer');
++    assert.equal(link.getAttribute('target'), '_blank');
++  }
++});
+diff --git a/tests/test_documents.py b/tests/test_documents.py
+new file mode 100644
+index 0000000..e3763f4
+--- /dev/null
++++ b/tests/test_documents.py
+@@ -0,0 +1,81 @@
++import hashlib
++from pathlib import Path
++
++import pytest
++from fastapi import FastAPI
++from fastapi.testclient import TestClient
++
++from backend import documents
++
++
++@pytest.fixture
++def client(tmp_path, monkeypatch):
++    monkeypatch.chdir(tmp_path)
++    app = FastAPI()
++    app.include_router(documents.router)
++    return TestClient(app)
++
++
++def test_original_external_and_workspace_reads_are_read_only(client, tmp_path):
++    workspace = tmp_path / "workspace"
++    workspace.mkdir()
++    original = tmp_path / "original.markdown"
++    original.write_text("# Original\n\nCafé", encoding="utf-8")
++    before = hashlib.sha256(original.read_bytes()).hexdigest()
++    contents_before = sorted(tmp_path.rglob("*"))
++    for path in [str(original), "original.markdown"]:
++        response = client.get("/api/documents", params={"path": path})
++        assert response.status_code == 200
++        assert response.json() == {
++            "path": str(original),
++            "name": original.name,
++            "content": "# Original\n\nCafé",
++        }
++    assert hashlib.sha256(original.read_bytes()).hexdigest() == before
++    assert sorted(tmp_path.rglob("*")) == contents_before
++
++
++def test_boundaries(client, tmp_path):
++    (tmp_path / "bad.md").write_bytes(b"\xff")
++    (tmp_path / "large.md").write_bytes(b"a" * (documents.MAX_BYTES + 1))
++    (tmp_path / "plain.txt").write_text("not markdown")
++    (tmp_path / "folder.md").mkdir()
++    for name, status in [
++        ("bad.md", 422),
++        ("large.md", 413),
++        ("plain.txt", 422),
++        ("folder.md", 422),
++        ("absent.md", 404),
++        ("../escape.md", 403),
++    ]:
++        assert client.get("/api/documents", params={"path": name}).status_code == status
++    outside = tmp_path.parent / f"{tmp_path.name}-outside.md"
++    try:
++        outside.write_text("# Outside")
++        (tmp_path / "escape.md").symlink_to(outside)
++        assert client.get("/api/documents", params={"path": "escape.md"}).status_code == 403
++        # Explicit absolute paths support originals outside the workspace.
++        assert client.get("/api/documents", params={"path": str(outside)}).status_code == 200
++    finally:
++        outside.unlink(missing_ok=True)
++    (tmp_path / "wrong.md").symlink_to(tmp_path / "plain.txt")
++    assert client.get("/api/documents", params={"path": "wrong.md"}).status_code == 422
++
++
++@pytest.mark.parametrize("selected", [None, "/elsewhere/original.md"])
++def test_choose_does_not_copy_or_read(client, monkeypatch, selected):
++    async def choose():
++        return selected
++
++    monkeypatch.setattr(documents, "choose_markdown_file", choose)
++    before = list(Path.cwd().iterdir())
++    assert client.post("/api/documents/choose").json() == {"path": selected}
++    assert list(Path.cwd().iterdir()) == before
++
++
++def test_chooser_failure_visible(client, monkeypatch):
++    async def choose():
++        raise OSError("unavailable")
++
++    monkeypatch.setattr(documents, "choose_markdown_file", choose)
++    assert client.post("/api/documents/choose").status_code == 503

@@ -1,0 +1,11 @@
+uv run ruff check .
+All checks passed!
+uv run ruff format --check .
+39 files already formatted
+uv run python scripts/wiki_lint.py
+Wiki links and index coverage OK (anchors/external links/semantics not checked)
+npm run check
+
+> self-growing@0.1.0 check
+> tsc --noEmit
+

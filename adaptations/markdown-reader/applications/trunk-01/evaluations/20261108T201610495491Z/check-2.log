@@ -1,0 +1,165 @@
+uv run pytest
+============================= test session starts ==============================
+platform darwin -- Python 3.13.2, pytest-9.2.0, pluggy-1.7.0
+rootdir: /Users/michael/dev/self-growing-reader-trunk-01
+configfile: pyproject.toml
+plugins: anyio-4.16.0
+collected 56 items
+
+tests/test_adapt.py .......                                              [ 12%]
+tests/test_app.py ..................                                     [ 44%]
+tests/test_dev.py .....                                                  [ 53%]
+tests/test_documents.py .....                                            [ 62%]
+tests/test_history.py .......                                            [ 75%]
+tests/test_install.py ........                                           [ 89%]
+tests/test_pi.py ..                                                      [ 92%]
+tests/test_wiki_lint.py ....                                             [100%]
+
+=============================== warnings summary ===============================
+.venv/lib/python3.13/site-packages/fastapi/testclient.py:1
+  /Users/michael/dev/self-growing-reader-trunk-01/.venv/lib/python3.13/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================== 56 passed, 1 warning in 6.61s =========================
+npm test
+
+> self-growing@0.1.0 test
+> node --import tsx --test tests/*.test.ts tests/*.test.tsx
+
+TAP version 13
+# Subtest: provider failures already in the transcript are not repeated above the composer
+ok 1 - provider failures already in the transcript are not repeated above the composer
+  ---
+  duration_ms: 0.473583
+  type: 'test'
+  ...
+# Subtest: unrepresented provider failures remain visible with readable network-error text
+ok 2 - unrepresented provider failures remain visible with readable network-error text
+  ---
+  duration_ms: 1.045917
+  type: 'test'
+  ...
+# Subtest: legacy drafts and uncertain messages migrate to one conversation only
+ok 3 - legacy drafts and uncertain messages migrate to one conversation only
+  ---
+  duration_ms: 2.426167
+  type: 'test'
+  ...
+# Subtest: session drafts remain separate and migration never overwrites a saved draft
+ok 4 - session drafts remain separate and migration never overwrites a saved draft
+  ---
+  duration_ms: 0.151
+  type: 'test'
+  ...
+# Subtest: delivery is pinned to its conversation and a stale-session rejection is not retried
+ok 5 - delivery is pinned to its conversation and a stale-session rejection is not retried
+  ---
+  duration_ms: 16.293
+  type: 'test'
+  ...
+# Subtest: reloads preserve unsent messages but never automatically replay an in-flight message
+ok 6 - reloads preserve unsent messages but never automatically replay an in-flight message
+  ---
+  duration_ms: 0.838
+  type: 'test'
+  ...
+# Subtest: legacy unsent messages remain sendable and invalid browser storage is harmless
+ok 7 - legacy unsent messages remain sendable and invalid browser storage is harmless
+  ---
+  duration_ms: 0.096375
+  type: 'test'
+  ...
+# Subtest: messages are submitted directly, including during active runs
+ok 8 - messages are submitted directly, including during active runs
+  ---
+  duration_ms: 14.383083
+  type: 'test'
+  ...
+# Subtest: paused or removed messages are not submitted
+ok 9 - paused or removed messages are not submitted
+  ---
+  duration_ms: 0.193417
+  type: 'test'
+  ...
+# Subtest: accepted messages are sent in order without changing their text
+ok 10 - accepted messages are sent in order without changing their text
+  ---
+  duration_ms: 0.364625
+  type: 'test'
+  ...
+# Subtest: startup and settling races keep the message queued for another attempt
+ok 11 - startup and settling races keep the message queued for another attempt
+  ---
+  duration_ms: 0.135667
+  type: 'test'
+  ...
+# Subtest: known pre-acceptance reload responses retry without pausing
+ok 12 - known pre-acceptance reload responses retry without pausing
+  ---
+  duration_ms: 0.451958
+  type: 'test'
+  ...
+# Subtest: server and network failures are surfaced, not silently retried
+ok 13 - server and network failures are surfaced, not silently retried
+  ---
+  duration_ms: 0.910875
+  type: 'test'
+  ...
+# Subtest: document lifecycle stays independent of chat, refreshes after work, and cancels safely
+ok 14 - document lifecycle stays independent of chat, refreshes after work, and cancels safely
+  ---
+  duration_ms: 73.021458
+  type: 'test'
+  ...
+# Subtest: readable Markdown with no resource loading or active HTML
+ok 15 - readable Markdown with no resource loading or active HTML
+  ---
+  duration_ms: 46.71
+  type: 'test'
+  ...
+# Subtest: default view keeps replies and omits thinking, tools, and empty shells
+ok 16 - default view keeps replies and omits thinking, tools, and empty shells
+  ---
+  duration_ms: 0.814458
+  type: 'test'
+  ...
+# Subtest: details can be restored without changing the saved messages
+ok 17 - details can be restored without changing the saved messages
+  ---
+  duration_ms: 0.217209
+  type: 'test'
+  ...
+# Subtest: failed tools follow the details toggle while assistant errors stay visible
+ok 18 - failed tools follow the details toggle while assistant errors stay visible
+  ---
+  duration_ms: 0.086041
+  type: 'test'
+  ...
+# Subtest: retry failures stay hidden while running and disappear after recovery
+ok 19 - retry failures stay hidden while running and disappear after recovery
+  ---
+  duration_ms: 0.102959
+  type: 'test'
+  ...
+# Subtest: an exhausted failure stays visible during a later user turn and after restoration
+ok 20 - an exhausted failure stays visible during a later user turn and after restoration
+  ---
+  duration_ms: 0.229
+  type: 'test'
+  ...
+# Subtest: plain-text assistant messages remain visible
+ok 21 - plain-text assistant messages remain visible
+  ---
+  duration_ms: 0.058791
+  type: 'test'
+  ...
+1..21
+# tests 21
+# suites 0
+# pass 21
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 968.409334
