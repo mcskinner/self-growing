@@ -3,7 +3,7 @@
 An experimental approach to growing software with AI agents.
 
 Start with a small local app and grow it through its embedded Pi chat. The agent changes
-the same app you're using. One chat, one local workspace, no database.
+the same app you're using. One active chat at a time, one local workspace, no database.
 
 - **`trunk` / `starter-kit`**: the minimal starting point, including the chat and local launcher.
 - **[`markdown-comments`](https://github.com/mcskinner/self-growing/tree/markdown-comments)**:
@@ -70,18 +70,20 @@ uv can install it if needed. Ctrl+C stops the dev servers.
 
 ## Markdown review
 
-**Open document…** uses the macOS native file chooser to open an original Markdown file,
+**Open document…** in the **Chats** drawer uses the macOS native file chooser to open an original Markdown file,
 without copying or importing it. Select text and choose **+ Comment** to add an annotation
 in the side rail. Saving or resolving annotations updates an HTML metadata block inside
 that Markdown file, so comments travel with it when renamed or moved. The chat stays on
 the left while reviewing; drag the divider to resize it. Closing the document restores
-the centered chat. New chat keeps the document open.
+the centered chat. New chat and history switching keep the document open, including
+any unsaved annotation draft. Chat drafts and outboxes remain attached to their conversations.
 
 ## How it works
 
 - **React + Vite** provide the app shell and live frontend updates.
 - A small **Lit web component** renders Markdown replies. Thinking and tool activity are
-  hidden by default; enable them under **Chat display**. Errors stay visible.
+  hidden by default; enable them under **Settings**. Only unrecovered provider failures
+  are shown as errors; internal retry attempts stay out of the way.
   This is a purpose-built RPC mirror, not the full `pi-web-ui` package or a terminal emulator.
 - **FastAPI** starts `pi --mode rpc` in this repository for each turn. Pi resumes the
   same session, runs its normal coding tools, and exits after `agent_settled`.
@@ -93,6 +95,10 @@ the centered chat. New chat keeps the document open.
 - **Pi's session files** in `.local/sessions/` hold conversation state. There is no second
   conversation database and no agent process kept alive between sends. **New chat** starts
   a fresh session without deleting the old one; `.local/active-session` remembers the selection.
+  **Chats** opens a recent-conversations drawer, titled from each conversation's first message.
+  Switching is available when idle, with no unsent messages. Each chat keeps its own browser-tab
+  draft and outbox; refreshing reopens the selected conversation. Saved session files are read
+  for discovery, but only Pi changes their contents.
   The context meter shows Pi's reported usage, updated after replies and compaction.
 - **`scripts/dev.py`** watches Python files and restarts the backend only after a turn
   finishes. React/CSS edits hot-update; web component edits reload the page. Drafts survive
@@ -122,13 +128,13 @@ Host checks, and Origin checks reduce browser attacks; they are not a sandbox. D
 these servers through a tunnel or public interface. Use Git to review and recover changes.
 Project-local Pi resources are explicitly trusted (`--approve`).
 
-One active shared session, one run at a time. No accounts, session picker, model picker,
+One selected conversation and one turn at a time; no background agents. No accounts, model picker,
 artifacts panel, or project management. Unsupported extension dialogs are cancelled rather
 than silently approved. TUI-only slash commands aren't supported; configure/login using Pi
 in your terminal. After compaction, a backend restart shows Pi's current conversation context,
 not an archival transcript. Stopping the whole dev server interrupts active work; completed
-messages remain saved. Use **New chat** for a fresh conversation; old sessions remain in
-`.local/sessions/` and can be resumed through Pi's terminal session picker while the app is stopped.
+messages remain saved. Use **New chat** for a fresh conversation or **Chats** to reopen an older
+one. Search, rename, deletion, and branching are intentionally not part of the history drawer.
 
 `make build` produces static assets only; production hosting is deliberately not included.
 

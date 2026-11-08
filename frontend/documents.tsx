@@ -172,7 +172,10 @@ export function DocumentView({ path, busy, onClose, onReview }: {
 
   return <section className="document-panel" aria-label="Document review">
     <div className="document-toolbar"><div><span className="eyebrow">DOCUMENT REVIEW</span><strong title={path}>{path}</strong></div>
-      <button className="quiet-button" onClick={onClose}>Close ×</button></div>
+      <button className="icon-button" onClick={onClose} aria-label="Close document" title="Close document">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"
+          strokeLinecap="round" aria-hidden="true" focusable="false"><path d="m6 6 12 12M18 6 6 18" /></svg>
+      </button></div>
     <div className="annotation-toolbar">
       <span title="Saving or resolving a comment updates an HTML metadata block in the original Markdown file.">Select a passage to comment · {openComments.length} open · {doc?.storage === 'legacy' ? 'Earlier comments not yet embedded' : 'Saved in Markdown'}</span>
       {doc?.storage === 'legacy' && <button className="quiet-button" disabled={saving} onClick={async () => {

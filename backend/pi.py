@@ -51,8 +51,8 @@ class Pi:
         while chunk := await self.process.stderr.read(4096):
             self.stderr = (self.stderr + chunk)[-8192:]
 
-    async def request(self, command):
-        await self.send({"type": command, "id": command})
+    async def request(self, command, **fields):
+        await self.send({"type": command, "id": command, **fields})
         async with asyncio.timeout(45):
             async for record in self.records():
                 if record.get("id") == command and record["type"] == "response":
