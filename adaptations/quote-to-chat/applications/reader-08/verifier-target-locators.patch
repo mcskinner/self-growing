@@ -1,0 +1,23 @@
+--- a/verification.mjs
++++ b/verification.mjs
+@@ -32,6 +32,7 @@
+     const errors = [], requests = [];
+     let sends = 0, picks = 0;
+     page.on('pageerror', error => errors.push(error.message));
++    page.on('console', message => { if (message.text().startsWith('label-range diagnostic')) console.log(message.text()); });
+     await page.addInitScript(snapshot => {
+       window.EventSource = class {
+         constructor() {
+@@ -111,7 +112,11 @@
+     const bounds = await action.boundingBox();
+     assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= width && bounds.y >= 0 && bounds.y + bounds.height <= 900);
+     const labelFits = await action.evaluate(button => {
+-      const range = document.createRange(); range.selectNodeContents(button);
++      const wrapperRange = document.createRange(); wrapperRange.selectNodeContents(button);
++      const label = button.querySelector(':scope > span');
++      if (!label || label.textContent !== button.textContent) throw new Error('Label locator does not cover all button text');
++      const range = document.createRange(); range.selectNodeContents(label);
++      console.log('label-range diagnostic', JSON.stringify({ wrapperRects: [...wrapperRange.getClientRects()].map(r => ({ x: r.x, y: r.y, width: r.width, height: r.height })), textRects: [...range.getClientRects()].map(r => ({ x: r.x, y: r.y, width: r.width, height: r.height })), clientWidth: button.clientWidth, scrollWidth: button.scrollWidth, clientHeight: button.clientHeight, scrollHeight: button.scrollHeight }));
+       return range.getClientRects().length === 1 && button.scrollWidth <= button.clientWidth + 1 && button.scrollHeight <= button.clientHeight + 1;
+     });
+     const distanceFromSelection = Math.min(Math.abs(bounds.y - rect.y), Math.abs(bounds.y + bounds.height - rect.y));

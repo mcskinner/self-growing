@@ -1,0 +1,4 @@
+label-range diagnostic {"wrapperRects":[{"x":533.796875,"y":258,"width":108.40625,"height":16},{"x":533.796875,"y":258,"width":108.40625,"height":16}],"textRects":[{"x":533.796875,"y":258,"width":108.40625,"height":16}],"clientWidth":144,"scrollWidth":144,"clientHeight":36,"scrollHeight":36}
+FUNCTIONAL PASS 1440px; label fits: true; near selection: true, distance: 15px
+label-range diagnostic {"wrapperRects":[{"x":45.796875,"y":655,"width":108.40625,"height":16},{"x":45.796875,"y":655,"width":108.40625,"height":16}],"textRects":[{"x":45.796875,"y":655,"width":108.40625,"height":16}],"clientWidth":144,"scrollWidth":144,"clientHeight":36,"scrollHeight":36}
+FUNCTIONAL PASS 390px; label fits: true; near selection: true, distance: 15px

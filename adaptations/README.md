@@ -63,7 +63,8 @@ missed action placement, a one-sentence retry exposed implementation bugs, and a
 prompted repair passed independent mocked browser checks. A fresh uncoached replication with
 unchanged inputs then repeated the label-overflow failure. A bounded verification-guidance batch
 produced a fresh pass, a settled-caret failure, and another fresh pass after a second acceptance
-clarification. The latest revision has one clean same-base pass, not replicated reliability.
+clarification. Two exact-input fresh replications then reproduced that latest-revision success:
+three clean same-base applications, with verifier caption/label-span adaptations recorded.
 Original failures remain recorded; no superiority of implementation-first development is established.
 
 ## Produce the next adaptation

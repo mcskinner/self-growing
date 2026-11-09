@@ -1,0 +1,13 @@
+{
+  "description_sha256": "20979b7109a7a6c3b6f66cc897011fcc54b202c35cb796f136fbf4e51592aee7",
+  "reference_patch_sha256": "ad64a2f52d16e3a4e61b404f58ff11a67b34954b161e49846e9559123521df1b",
+  "source_evidence_sha256": "9c2370570f319838d5f25aa70d208c87a51e3382dcd2bc05b7a4d60c6367faa7",
+  "original_verifier_sha256": "cc4db324be316d88455af1456ced40613ac90c9f5c26f908ce23c2d28e4be9dc",
+  "label_locator_verifier_sha256": "ae33e6e9457192154997e5a091abb4ae7af8413f539a45b450321222436f7aa5",
+  "skill_sha256": "8061e9dbd836396c62cfa5a5548698617204aff3dd06d1ab4326c62edfda9256",
+  "tooling_sha256": "0d72497044749d70919d113b234a36d0e5fb974a3468ada83d88d2754606b60c",
+  "configured_model": "openai-codex/gpt-6.1-sol",
+  "prior_results_or_repair_provided": false,
+  "verification_variant": "target label text locator; original acceptance assertions",
+  "parallel_fresh_sessions": true
+}

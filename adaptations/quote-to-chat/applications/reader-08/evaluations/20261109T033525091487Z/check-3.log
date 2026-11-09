@@ -1,0 +1,14 @@
+npm run build
+
+> self-growing@0.1.0 build
+> tsc --noEmit && vite build
+
+vite v7.3.7 building client environment for production...
+transforming...
+✓ 51 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.72 kB │ gzip:   0.45 kB
+dist/assets/index-v5i7BhAW.css   12.42 kB │ gzip:   3.47 kB
+dist/assets/index-1gKQ0X2c.js   339.41 kB │ gzip: 109.56 kB
+✓ built in 632ms

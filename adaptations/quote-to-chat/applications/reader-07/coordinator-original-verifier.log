@@ -1,0 +1,14 @@
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+
+locator.waitFor: Timeout 30000ms exceeded.
+Call log:
+  [2m- waiting for getByRole('button', { name: /^(add to chat|quote to chat)$/i }) to be visible[22m
+
+    at active (/Users/michael/dev/self-growing/.local/adaptation-runs/quote-to-chat-verification-07/verification.mjs:65:20)
+    at /Users/michael/dev/self-growing/.local/adaptation-runs/quote-to-chat-verification-07/verification.mjs:109:11 {
+  name: 'TimeoutError'
+}
+
+Node.js v22.23.2

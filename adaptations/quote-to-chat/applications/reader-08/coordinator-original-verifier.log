@@ -1,0 +1,17 @@
+FUNCTIONAL PASS 1440px; label fits: false; near selection: true, distance: 17px
+FUNCTIONAL PASS 390px; label fits: false; near selection: true, distance: 17px
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: Quote action must be beside the passage with a readable, unclipped label
+    at file:///Users/michael/dev/self-growing/.local/adaptation-runs/quote-to-chat-verification-08/verification.mjs:199:10 {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: false,
+  expected: true,
+  operator: '==',
+  diff: 'simple'
+}
+
+Node.js v22.23.2
