@@ -1,0 +1,24 @@
+--- a/verification.mjs
++++ b/verification.mjs
+@@ -53,18 +53,18 @@
+       throw new Error(`Unexpected API request: ${url.pathname}`);
+     });
+     const input = page.getByRole('textbox', { name: 'Message Pi' });
+-    const action = page.getByRole('button', { name: /^(add to chat|quote to chat)$/i });
++    const action = page.getByRole('button', { name: /^(add to chat|quote to chat|add quote to draft)$/i });
+     const article = page.locator('.markdown-document');
+     async function inactive() {
+       await page.waitForFunction(() => {
+-        const button = [...document.querySelectorAll('button')].find(b => /^(add to chat|quote to chat)$/i.test(b.textContent.trim()));
++        const button = [...document.querySelectorAll('button')].find(b => /^(add to chat|quote to chat|add quote to draft)$/i.test(b.textContent.trim()));
+         return !button || button.disabled || !button.getClientRects().length;
+       });
+     }
+     async function active() {
+       await action.waitFor({ state: 'visible' });
+       await page.waitForFunction(() => {
+-        const button = [...document.querySelectorAll('button')].find(b => /^(add to chat|quote to chat)$/i.test(b.textContent.trim()));
++        const button = [...document.querySelectorAll('button')].find(b => /^(add to chat|quote to chat|add quote to draft)$/i.test(b.textContent.trim()));
+         return button && !button.disabled;
+       });
+     }

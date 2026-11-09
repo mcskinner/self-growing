@@ -91,7 +91,15 @@ If reader-04 passes, use another fresh same-base run with identical guidance to 
 
 Reader-04 (`788274c3c42c842e2f142310cc5bbb09e1df9222`) used the verification-guidance description frozen at `f138085`, SHA-256 `06f125519f09d08535a8070353d6e2ab8be3bbed7a059679a729caf99dd441d2`. Record/evaluate and unchanged independent desktop/narrow acceptance passed on the first committed application, without coordinator repair or verifier adjustments. The applier's own browser test now asserts actual label text geometry and identifies inherited global button sizing. See the [first verification-guidance review](../../adaptations/quote-to-chat/applications/reader-04/coordinator-review.md). This is one positive same-base result, not a controlled causal comparison.
 
-As prospectively planned, reader-05 will use the identical frozen description, original reference/evidence, baseline, skill/tooling, model configuration, safety/context prompt, and held-out verifier in a new worktree/session. No further guidance changes or reader-04 outcomes/code are supplied. Replication result: pending. New application budget used: 1 of at most 3.
+Reader-05 (`8b01b6b4858d981efe82abf09a0dc7c2ed4551d0`) used identical inputs in a fresh worktree/session. Automated evaluation passed; its own browser checks explicitly cover actual label geometry, and wide independent screenshot review confirms a readable label. The verbatim held-out verifier hit a caption-selector mismatch (valid “Add quote to draft”); a separately preserved three-regex caption translation changed no assertions or target code. That replay then timed out on settled composer-end-caret placement. Full independent acceptance failed; later/narrow scenarios were not completed. See the [replication review](../../adaptations/quote-to-chat/applications/reader-05/coordinator-review.md). No repair was made. New application budget used: 2 of at most 3.
+
+### [2026-11-08] prospective amendment: final bounded settled-caret verification trial
+
+Reader-05's own tests inspect focus but not settled caret endpoints or continued typing, mirroring the earlier reader-02 failure. For reader-06, keep the label-verification sentence and add only: after the updated draft renders, assert composer focus with a collapsed caret at the end and verify typing appends there. This is a portable observable outcome, not a React/selection-cleanup fix. Freeze the revised description before invocation; use the same original baseline/reference/evidence, configured model, skill/tooling, safety brief, and isolated context. No previous outcomes, repaired code, or coordinator verifier supplied.
+
+Replay the original held-out verifier first. If a valid different action caption blocks selection, preserve the original output and translate only that locator, retaining identical scenarios/assertions and publishing the exact delta. This exception addresses a demonstrated brittle test selector, not an adaptation requirement for exact wording. Do not change assertions or target code during independent verification. Preserve the first application whether it passes or fails, with no prompted repair. This consumes the third/final authorized additional application; stop afterward and report mixed evidence rather than automatically iterating again.
+
+Reader-06 result: pending.
 
 ## Lessons and next experiment
 
