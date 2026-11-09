@@ -1,6 +1,6 @@
 # Experiment: transfer quote-to-chat from a reviewed implementation
 
-Status: initial transfers/repair/replication and all three additional verification-guidance trials completed, 2026-11-08. Plan committed as `58bae20` before extraction/application, not before the source feature's development.
+Status: verification-guidance revision achieved a clean fresh pass; two exact-input replications authorized and planned, 2026-11-08. Plan committed as `58bae20` before extraction/application, not before the source feature's development.
 
 ## Question and hypothesis
 
@@ -102,6 +102,16 @@ Replay the original held-out verifier first. If a valid different action caption
 Reader-06 (`4a5e3951d397096d0d43d7c7b2f2cd8e2d28a92f`) used the final description frozen at `9b21636`, SHA-256 `20979b7109a7a6c3b6f66cc897011fcc54b202c35cb796f136fbf4e51592aee7`. Existing record/evaluate and byte-identical independent verification passed at 1440px/390px, including label fit and settled end caret; its own committed browser tests additionally assert subsequent typing. No caption translation, verifier adjustment, or application repair was needed. See the [final bounded review](../../adaptations/quote-to-chat/applications/reader-06/coordinator-review.md).
 
 All 3 of 3 additional application sessions have been used: reader-04 pass with label guidance; reader-05 failed the settled-caret check after a caption-only locator translation; reader-06 pass with both acceptance sentences. Stop here. The latest revision has one clean pass, not repeated independent success on identical guidance. No trial runtime code was integrated into the running workshop.
+
+### [2026-11-08] prospective amendment: reproduce the clean latest-revision pass twice
+
+Reader-06 was a clean, unrepaired success. The owner requested two more fresh replications of that exact revision, not further hardening or repaired applications. Run reader-07 and reader-08 from the original baseline `0d6ebc22c84fed9bc3848b6beb8ed3f957d71c61` in separate worktrees and fresh isolated Pi sessions. They may run concurrently because their target trees, session directories, output records, and static fixtures are independent. Neither receives the other's work or any previous result, debugging feedback, repair code, or coordinator verifier.
+
+Freeze description SHA-256 `20979b7109a7a6c3b6f66cc897011fcc54b202c35cb796f136fbf4e51592aee7`, original reference.patch `ad64a2f52d16e3a4e61b404f58ff11a67b34954b161e49846e9559123521df1b`, and independent verification.mjs `cc4db324be316d88455af1456ced40613ac90c9f5c26f908ce23c2d28e4be9dc`. Original evidence, skill/tooling, configured model, normal safety/context prompt, baseline, and acceptance assertions are unchanged. No added instructions or implementation hints.
+
+Record each first committed result and feedback, run the existing evaluator, and independently replay the held-out wide/narrow checks and inspect screenshots. Preserve the original verifier output if a valid different caption requires a locator-only translation; publish the exact selector delta with unchanged assertions. No coordinator code edits, prompted repairs, or description amendments in this replication pair. Keep the running feature/saved chats untouched; preserve both outcomes rather than chasing a success. These two runs test repeatability on this related baseline, not broad app portability or necessity of either guidance sentence.
+
+Reader-07 and reader-08 outcomes: pending.
 
 ## Lessons and next experiment
 
