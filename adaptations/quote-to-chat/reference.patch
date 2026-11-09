@@ -1,0 +1,507 @@
+diff --git a/frontend/document-quotes.ts b/frontend/document-quotes.ts
+new file mode 100644
+index 0000000..15c12a1
+--- /dev/null
++++ b/frontend/document-quotes.ts
+@@ -0,0 +1,11 @@
++export interface DocumentQuote { path: string; text: string }
++
++export const MAX_DRAFT_LENGTH = 100000;
++
++export function appendDocumentQuote(draft: string, quote: DocumentQuote): string {
++  if (!quote.text.trim()) return draft;
++  const citation = `From ${quote.path}:\n${quote.text.split(/\r?\n/).map(line => `> ${line}`).join('\n')}`;
++  const result = `${draft}${draft ? '\n\n' : ''}${citation}\n\n`;
++  if (result.length > MAX_DRAFT_LENGTH) throw new Error('This quote would exceed the draft limit. Select a shorter passage or shorten your draft.');
++  return result;
++}
+diff --git a/frontend/documents.tsx b/frontend/documents.tsx
+index 102aa74..9248856 100644
+--- a/frontend/documents.tsx
++++ b/frontend/documents.tsx
+@@ -1,6 +1,7 @@
+-import { useEffect, useMemo, useState } from 'react';
++import { useEffect, useMemo, useRef, useState } from 'react';
+ import DOMPurify from 'dompurify';
+ import { marked } from 'marked';
++import type { DocumentQuote } from './document-quotes';
+ 
+ async function request<T>(url: string, init?: RequestInit): Promise<T> {
+   const response = await fetch(url, init);
+@@ -8,41 +9,139 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
+   return response.json();
+ }
+ 
+-export function DocumentPicker({ onOpen }: { onOpen: (path: string) => void }) {
+-  const [opening, setOpening] = useState(false);
+-  const [error, setError] = useState('');
+-  async function open() {
+-    setOpening(true); setError('');
+-    try {
+-      const result = await request<{ path: string | null }>('/api/documents/pick', { method: 'POST' });
+-      if (result.path) onOpen(result.path);
+-    } catch (err) { setError(String(err)); }
+-    finally { setOpening(false); }
+-  }
++export function DocumentPicker({ open, onToggle }: { open: boolean; onToggle: () => void }) {
+   return <div className="document-picker">
+-    <button className="icon-button" disabled={opening} aria-label="Open document" title={opening ? 'Choosing document…' : 'Open document'}
+-      aria-busy={opening} onClick={() => void open()}>
++    <button className="icon-button" aria-label="Project docs" title="Project docs"
++      aria-haspopup="dialog" aria-expanded={open} aria-controls="project-docs" onClick={onToggle}>
+       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"
+         strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+         <path d="M20 20H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2Z" />
+       </svg>
+     </button>
+-    {error && <span className="error" role="alert">{error} <button className="quiet-button" onClick={() => void open()}>Retry</button></span>}
+   </div>;
+ }
+ 
++interface Entry { path: string; name: string; children?: Entry[] }
+ interface Document { path: string; content: string }
+ 
+-export function DocumentView({ path, busy, onClose, onOpen }: {
+-  path: string; busy: boolean; onClose: () => void; onOpen: (path: string) => void;
++export function ProjectDocs({ open, path, busy, onOpen, onClose }: {
++  open: boolean; path: string; busy: boolean; onOpen: (path: string) => void; onClose: () => void;
++}) {
++  const dialog = useRef<HTMLDialogElement>(null);
++  const motion = useRef<Animation | null>(null);
++  useEffect(() => {
++    const element = dialog.current;
++    if (!element) return;
++    const wasOpen = element.open;
++    const from = wasOpen ? getComputedStyle(element).transform : 'translateX(100%)';
++    motion.current?.cancel();
++    if (open && !wasOpen) element.showModal();
++    if (!open && !wasOpen) return;
++    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
++      if (!open) element.close();
++      return;
++    }
++    const animation = element.animate([
++      { transform: from }, { transform: open ? 'translateX(0)' : 'translateX(100%)' },
++    ], { duration: open ? 200 : 160, easing: 'cubic-bezier(.2, .8, .2, 1)', fill: 'forwards' });
++    motion.current = animation;
++    void animation.finished.then(() => {
++      if (motion.current !== animation) return;
++      if (!open) element.close();
++      animation.cancel(); motion.current = null;
++    }).catch(() => {}); // A reversed transition cancels the previous animation.
++  }, [open]);
++  useEffect(() => () => motion.current?.cancel(), []);
++  const [entries, setEntries] = useState<Entry[]>([]);
++  const [error, setError] = useState('');
++  const [loading, setLoading] = useState(true);
++  const [attempt, setAttempt] = useState(0);
++  useEffect(() => {
++    if (!open) return;
++    const controller = new AbortController();
++    setLoading(true); setError('');
++    request<{ entries: Entry[] }>('/api/documents/tree', { signal: controller.signal })
++      .then(data => { if (!controller.signal.aborted) setEntries(data.entries); })
++      .catch(err => { if (!controller.signal.aborted) setError(String(err)); })
++      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
++    return () => controller.abort();
++  }, [open, busy, attempt]);
++  function tree(items: Entry[]) {
++    return <ul>{items.map(item => <li key={item.path}>{item.children
++      ? <details open><summary>{item.name}</summary>{tree(item.children)}</details>
++      : <button title={item.path} aria-current={path === item.path ? 'page' : undefined}
++          onClick={() => { onOpen(item.path); onClose(); }}>{item.name}</button>}</li>)}</ul>;
++  }
++  return <dialog ref={dialog} id="project-docs" className="chat-history docs-drawer" data-open={open}
++    aria-labelledby="docs-title" onCancel={event => { event.preventDefault(); onClose(); }} onClose={onClose}
++    onClick={event => {
++      if (event.target !== event.currentTarget) return;
++      const bounds = event.currentTarget.getBoundingClientRect();
++      if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) onClose();
++    }}>
++    <div className="history-heading"><h2 id="docs-title">Project docs <span className="docs-root">docs/</span></h2>
++      <button className="icon-button" onClick={onClose} aria-label="Close project docs" title="Close">
++        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"
++          strokeLinecap="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg>
++      </button></div>
++      <nav className="docs-tree" aria-label="Documentation files">
++        {loading && <p role="status">Loading files…</p>}
++        {error && <p className="error" role="alert">{error} <button onClick={() => setAttempt(a => a + 1)}>Retry</button></p>}
++        {!loading && !error && !entries.length && <p>No Markdown documents in docs/ yet.</p>}
++        {tree(entries)}
++      </nav>
++  </dialog>;
++}
++
++export function DocumentView({ path, busy, onOpen, onClose, onQuote }: {
++  path: string; busy: boolean; onOpen: (path: string) => void; onClose: () => void;
++  onQuote: (quote: DocumentQuote) => void;
+ }) {
++  const article = useRef<HTMLElement>(null);
++  const quoteButton = useRef<HTMLButtonElement>(null);
++  const [selection, setSelection] = useState<{ text: string; x: number; y: number } | null>(null);
++  useEffect(() => {
++    function changed() {
++      const selected = window.getSelection();
++      const root = article.current;
++      if (!selected || selected.isCollapsed || !selected.rangeCount || !root?.contains(selected.anchorNode) || !root.contains(selected.focusNode)) {
++        // Keep keyboard activation possible after tabbing from the selected text.
++        if (document.activeElement !== quoteButton.current) setSelection(null);
++        return;
++      }
++      const text = selected.toString();
++      if (!text.trim()) { setSelection(null); return; }
++      const rect = selected.getRangeAt(0).getBoundingClientRect();
++      const panel = root.parentElement!.getBoundingClientRect();
++      const top = Math.max(0, panel.top);
++      const bottom = Math.min(window.innerHeight, panel.bottom);
++      if (rect.bottom < top || rect.top > bottom) { setSelection(null); return; }
++      setSelection({ text,
++        x: Math.max(8, Math.min(rect.left, window.innerWidth - 140)),
++        y: Math.max(top + 8, Math.min(rect.bottom + 8, bottom - 44)),
++      });
++    }
++    function dismiss(event: KeyboardEvent) {
++      if (event.key === 'Escape') { setSelection(null); window.getSelection()?.removeAllRanges(); }
++    }
++    document.addEventListener('selectionchange', changed);
++    document.addEventListener('scroll', changed, true);
++    window.addEventListener('resize', changed);
++    document.addEventListener('keydown', dismiss);
++    return () => {
++      document.removeEventListener('selectionchange', changed);
++      document.removeEventListener('scroll', changed, true);
++      window.removeEventListener('resize', changed);
++      document.removeEventListener('keydown', dismiss);
++    };
++  }, []);
+   const [doc, setDoc] = useState<Document | null>(null);
+   const [error, setError] = useState('');
+   const [loading, setLoading] = useState(true);
+   const [loadAttempt, setLoadAttempt] = useState(0);
+   useEffect(() => {
+     const controller = new AbortController();
+-    setLoading(true); setError('');
++    setLoading(true); setError(''); setDoc(null); setSelection(null);
+     request<Document>(`/api/documents/content?path=${encodeURIComponent(path)}`, { signal: controller.signal }).then(data => {
+       if (!controller.signal.aborted) setDoc(data);
+     }).catch(err => {
+@@ -65,16 +164,16 @@ export function DocumentView({ path, busy, onClose, onOpen }: {
+   }
+ 
+   return <section className="document-panel" aria-label="Markdown reader">
+-    <div className="document-toolbar"><div><span className="eyebrow">DOCUMENT</span><strong title={doc?.path || path}>{doc?.path || path}</strong></div>
++    <div className="document-toolbar"><strong title={doc?.path || path}>{doc?.path || path}</strong>
+       <button className="icon-button" onClick={onClose} aria-label="Close document" title="Close document">
+         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"
+-          strokeLinecap="round" aria-hidden="true" focusable="false"><path d="m6 6 12 12M18 6 6 18" /></svg>
++          strokeLinecap="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg>
+       </button></div>
+     <div className="document-scroll" aria-busy={loading}>
+       {loading && <p role="status">Loading document…</p>}
+       {error && <div className="error" role="alert">{error} <button className="quiet-button" disabled={loading}
+         onClick={() => setLoadAttempt(attempt => attempt + 1)}>Retry</button></div>}
+-      {doc && <article className="markdown-document" dangerouslySetInnerHTML={{ __html: html }} onClick={event => {
++      {doc && <article ref={article} className="markdown-document" dangerouslySetInnerHTML={{ __html: html }} onClick={event => {
+         const link = (event.target as HTMLElement).closest('a');
+         if (!link) return;
+         const href = link.getAttribute('href') || '';
+@@ -86,5 +185,11 @@ export function DocumentView({ path, busy, onClose, onOpen }: {
+         } else if (/^https?:\/\//i.test(href)) window.open(href, '_blank', 'noopener,noreferrer');
+       }} />}
+     </div>
++    {selection && !loading && doc && <button ref={quoteButton} className="selection-quote" type="button"
++      style={{ left: selection.x, top: selection.y }} onPointerDown={event => event.preventDefault()}
++      onClick={() => {
++        onQuote({ path: doc.path, text: selection.text });
++        setSelection(null); window.getSelection()?.removeAllRanges();
++      }}>Add to chat</button>}
+   </section>;
+ }
+diff --git a/frontend/main.tsx b/frontend/main.tsx
+index 938accc..d5f128f 100644
+--- a/frontend/main.tsx
++++ b/frontend/main.tsx
+@@ -10,7 +10,8 @@ import { composerError } from './chat-errors';
+ import './transcript';
+ import './style.css';
+ import './reader.css';
+-import { DocumentPicker, DocumentView } from './documents';
++import { DocumentPicker, DocumentView, ProjectDocs } from './documents';
++import { appendDocumentQuote, MAX_DRAFT_LENGTH, type DocumentQuote } from './document-quotes';
+ 
+ interface State {
+   messages: Message[]; busy: boolean; error: string | null; activity: string;
+@@ -21,6 +22,11 @@ function App() {
+   const [state, setState] = useState<State | null>(null);
+   const [connected, setConnected] = useState(false);
+   const [documentPath, setDocumentPath] = useState(() => sessionStorage.getItem('open-document') || '');
++  const [docsOpen, setDocsOpen] = useState(false);
++  const [quote, setQuote] = useState<DocumentQuote | null>(null);
++  function toggleDocs() {
++    setDocsOpen(open => !open);
++  }
+   const [chatWidth, setChatWidth] = useState(() => {
+     const saved = Number(localStorage.getItem('chat-width'));
+     return Number.isFinite(saved) && saved >= 320 ? Math.min(saved, 900) : 480;
+@@ -53,7 +59,8 @@ function App() {
+   // Each conversation owns its draft/outbox closures, even if an old request finishes late.
+   return <div className={`app ${documentPath ? 'workspace' : ''} ${resizing ? 'resizing' : ''}`}
+     ref={workspace} style={{ '--chat-width': `${chatWidth}px` } as CSSProperties}>
+-    <Chat key={state.sessionId || 'initial'} state={state} connected={connected} onOpenDocument={openDocument} />
++    <Chat key={state.sessionId || 'initial'} state={state} connected={connected} docsOpen={docsOpen}
++      onToggleDocs={toggleDocs} quote={quote} onQuoteAdded={() => setQuote(null)} />
+     {documentPath && <div className="panel-resizer" role="separator" tabIndex={0}
+       aria-label="Resize chat panel" aria-orientation="vertical" aria-valuemin={320} aria-valuemax={900} aria-valuenow={chatWidth}
+       onDoubleClick={() => resizeChat(480)}
+@@ -75,12 +82,15 @@ function App() {
+         }
+       }} />}
+     {documentPath && <DocumentView key={documentPath} path={documentPath} busy={state.busy}
+-      onClose={() => openDocument('')} onOpen={openDocument} />}
++      onClose={() => openDocument('')} onOpen={openDocument} onQuote={setQuote} />}
++    <ProjectDocs open={docsOpen} path={documentPath} busy={state.busy}
++      onClose={() => setDocsOpen(false)} onOpen={openDocument} />
+   </div>;
+ }
+ 
+-function Chat({ state, connected, onOpenDocument }: {
+-  state: State; connected: boolean; onOpenDocument: (path: string) => void;
++function Chat({ state, connected, docsOpen, onToggleDocs, quote, onQuoteAdded }: {
++  state: State; connected: boolean; docsOpen: boolean; onToggleDocs: () => void;
++  quote: DocumentQuote | null; onQuoteAdded: () => void;
+ }) {
+   const draftKey = chatKey(state.sessionId, 'draft');
+   const cursorKey = chatKey(state.sessionId, 'draft-cursor');
+@@ -97,6 +107,25 @@ function Chat({ state, connected, onOpenDocument }: {
+   const follow = useRef(true);
+   const input = useRef<HTMLTextAreaElement>(null);
+ 
++  const focusQuote = useRef(false);
++  useEffect(() => {
++    if (!quote) return;
++    try {
++      if (startingSession) throw new Error('Wait for the chat to open before adding a quote.');
++      setDraft(appendDocumentQuote(draft, quote));
++      setError(''); focusQuote.current = true;
++    } catch (err) { setError(err instanceof Error ? err.message : String(err)); }
++    onQuoteAdded();
++  }, [quote, onQuoteAdded, draft, startingSession]);
++  useLayoutEffect(() => {
++    if (!focusQuote.current || !input.current) return;
++    focusQuote.current = false;
++    const element = input.current;
++    element.focus();
++    element.setSelectionRange(draft.length, draft.length);
++    saveComposer();
++  }, [draft]);
++
+   function saveComposer() {
+     const element = input.current;
+     if (!element) return;
+@@ -207,7 +236,7 @@ function Chat({ state, connected, onOpenDocument }: {
+       <a className="brand" href="/" aria-label="Self-growing home"><span className="seed" aria-hidden="true">✳</span><span className="brand-name">self-growing</span></a>
+       <div className="header-actions">
+         <span className="connection" title="Connection to the local chat backend"><i className={connected ? 'online' : ''} />{connected ? 'Connected' : 'Reconnecting…'}</span>
+-        <DocumentPicker onOpen={onOpenDocument} />
++        <DocumentPicker open={docsOpen} onToggle={onToggleDocs} />
+         <ChatDisplay showDetails={showDetails} onChange={setShowDetails} />
+       </div>
+     </header>
+@@ -255,7 +284,7 @@ function Chat({ state, connected, onOpenDocument }: {
+         </li>)}</ol>
+       </section>}
+       <form onSubmit={event => { event.preventDefault(); send(); }}>
+-        <textarea ref={input} value={draft} disabled={startingSession} rows={1} maxLength={100000} aria-label="Message Pi"
++        <textarea ref={input} value={draft} disabled={startingSession} rows={1} maxLength={MAX_DRAFT_LENGTH} aria-label="Message Pi"
+           placeholder={state.busy ? 'Steer Pi while it works…' : 'Ask Pi to change this app…'}
+           onSelect={saveComposer} onChange={event => { setDraft(event.target.value); saveComposer(); }}
+           onKeyDown={event => {
+diff --git a/frontend/reader.css b/frontend/reader.css
+index 0fec720..0cd9bad 100644
+--- a/frontend/reader.css
++++ b/frontend/reader.css
+@@ -17,7 +17,19 @@
+ .workspace .footnote span:last-child { display: none; }
+ .workspace .welcome { padding-top: 40px; }
+ .workspace .welcome h1 { font-size: 30px; }
+-.document-panel { grid-column: 3; grid-row: 2; min-height: 0; min-width: 0; display: flex; flex-direction: column; }
++.docs-drawer { inset: 0 0 0 auto; border-right: 0; border-left: 1px solid #dce1d3; }
++.docs-root { margin-left: 8px; color: #929889; font-weight: 400; }
++.docs-tree { overflow: auto; overscroll-behavior: contain; flex: 1; min-height: 0; padding: 0 0 12px; font-size: 13px; }
++.docs-tree ul { list-style: none; margin: 0; padding-left: 16px; }
++.docs-tree > ul { padding-left: 0; }
++.docs-tree summary { cursor: pointer; padding: 5px 0; color: #6c775f; }
++.docs-tree button { display: block; width: 100%; height: auto; padding: 6px 8px; text-align: left; border: 0; border-radius: 4px; background: transparent; color: inherit; font: inherit; cursor: pointer; overflow-wrap: anywhere; }
++.docs-tree button:hover, .docs-tree button[aria-current] { background: #e9eddf; color: #405536; }
++.document-panel { grid-column: 3; grid-row: 2; flex: 1; min-height: 0; min-width: 0; display: flex; flex-direction: column; }
++.selection-quote { position: fixed; z-index: 10; width: auto; height: auto; white-space: nowrap; line-height: 1.4; padding: 9px 14px; border: 1px solid #d6ddcb; border-radius: 8px; background: #f8f7f4; color: #405536; font: inherit; font-size: 13px; box-shadow: 0 3px 14px #292e2924; cursor: pointer; }
++.selection-quote:hover { background: #e9eddf; }
++.selection-quote:focus-visible { outline: 2px solid #6f8859; outline-offset: 2px; }
++.markdown-document::selection, .markdown-document ::selection { background: #dce6cb; }
+ .document-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; height: 64px; flex-shrink: 0; padding: 0 24px; border-bottom: 1px solid #e6e7de; }
+ .document-toolbar > div { min-width: 0; }
+ .document-toolbar .eyebrow { display: block; font-size: 10px; margin-bottom: 6px; }
+diff --git a/tests/document-quotes.test.ts b/tests/document-quotes.test.ts
+new file mode 100644
+index 0000000..cec121b
+--- /dev/null
++++ b/tests/document-quotes.test.ts
+@@ -0,0 +1,21 @@
++import assert from 'node:assert/strict';
++import test from 'node:test';
++import { appendDocumentQuote, MAX_DRAFT_LENGTH } from '../frontend/document-quotes.ts';
++
++test('a document quote preserves the draft and attributes every line of the passage', () => {
++  assert.equal(appendDocumentQuote('Please consider:', { path: 'docs/wiki/index.md', text: 'First\n\nLast' }),
++    'Please consider:\n\nFrom docs/wiki/index.md:\n> First\n> \n> Last\n\n');
++});
++
++test('empty drafts and repeated quotes remain editable plain text', () => {
++  const quote = { path: 'docs/notes.md', text: '  indented\r\nnext' };
++  const first = appendDocumentQuote('', quote);
++  assert.equal(first, 'From docs/notes.md:\n>   indented\n> next\n\n');
++  assert.equal(appendDocumentQuote(first, quote), `${first}\n\n${first}`);
++  assert.equal(appendDocumentQuote('Keep this', { ...quote, text: ' \n ' }), 'Keep this');
++});
++
++test('quotes exceeding the composer limit are rejected instead of truncating existing work', () => {
++  assert.throws(() => appendDocumentQuote('x'.repeat(MAX_DRAFT_LENGTH), { path: 'docs/a.md', text: 'Quote' }),
++    /exceed the draft limit/);
++});
+diff --git a/tests/quote-to-chat.browser.mjs b/tests/quote-to-chat.browser.mjs
+new file mode 100644
+index 0000000..1742872
+--- /dev/null
++++ b/tests/quote-to-chat.browser.mjs
+@@ -0,0 +1,131 @@
++// Run against an existing Vite server; all API/chat traffic is mocked.
++// BASE_URL=http://127.0.0.1:5174 PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs \
++// CHROME_PATH='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' node tests/quote-to-chat.browser.mjs
++import assert from 'node:assert/strict';
++const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
++const browser = await chromium.launch({ headless: true, ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {}) });
++const base = process.env.BASE_URL || 'http://127.0.0.1:5173';
++const source = 'docs/example.md';
++const text = 'A passage worth discussing.';
++const state = { sessionId: 'quote-test', messages: [], busy: false, error: null, activity: '', steering: [], context: null };
++const wait = () => new Promise(resolve => setTimeout(resolve, 80));
++try {
++  for (const width of [1440, 390]) {
++    const context = await browser.newContext({ viewport: { width, height: 900 } });
++    const page = await context.newPage();
++    const errors = [];
++    let sends = 0;
++    page.on('pageerror', error => errors.push(error.message));
++    await page.addInitScript(snapshot => {
++      window.EventSource = class {
++        constructor() {
++          window.chatEvents = this;
++          setTimeout(() => this.onmessage?.({ data: JSON.stringify(snapshot) }), 0);
++        }
++        close() {}
++      };
++    }, state);
++    await page.route('**/api/**', route => {
++      const url = new URL(route.request().url());
++      const respond = body => route.fulfill({ contentType: 'application/json', body: JSON.stringify(body) });
++      if (url.pathname === '/api/documents/tree') return respond({ entries: [{ path: source, name: 'example.md' }] });
++      if (url.pathname === '/api/documents/content') return respond({ path: url.searchParams.get('path'), content: '# Example\n\nA passage worth **discussing**.\n\nSecond paragraph.\n\n[Next](next.md)' });
++      if (url.pathname === '/api/documents/resolve') return respond({ path: 'docs/next.md' });
++      if (url.pathname === '/api/chat') { sends++; return respond({ ok: true }); }
++      throw new Error(`Unexpected API call: ${url.pathname}`);
++    });
++    const input = page.getByRole('textbox', { name: 'Message Pi' });
++    const action = page.getByRole('button', { name: 'Add to chat', exact: true });
++    async function selectPassage() {
++      await page.locator('.markdown-document p').first().scrollIntoViewIfNeeded();
++      await page.locator('.markdown-document p').first().evaluate(element => {
++        const range = document.createRange(); range.selectNodeContents(element);
++        const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(range);
++      });
++      await action.waitFor({ state: 'visible' });
++    }
++    await page.goto(base);
++    await input.fill('Keep my question.');
++    const original = await page.locator('.chat-panel').boundingBox();
++    await page.getByRole('button', { name: 'Project docs', exact: true }).click();
++    const drawer = page.getByRole('dialog', { name: /Project docs/ });
++    await drawer.waitFor({ state: 'visible' });
++    assert.equal((await page.locator('.chat-panel').boundingBox()).width, original.width, 'drawer does not resize chat');
++    assert.equal(await page.locator('.markdown-document').count(), 0, 'drawer is navigation only');
++    await drawer.getByRole('button', { name: 'example.md' }).click();
++    await drawer.waitFor({ state: 'hidden' });
++    await page.locator('.markdown-document').waitFor();
++    assert.equal(await action.count(), 0, 'no action without selection');
++    // Exercise a real pointer selection too, not just Selection API fixtures.
++    await page.locator('.markdown-document p').first().scrollIntoViewIfNeeded();
++    const passageBounds = await page.locator('.markdown-document p').first().evaluate(element => {
++      const range = document.createRange(); range.selectNodeContents(element);
++      const rect = range.getBoundingClientRect();
++      return { left: rect.left, right: rect.right, y: rect.top + rect.height / 2 };
++    });
++    await page.mouse.move(passageBounds.left, passageBounds.y);
++    await page.mouse.down();
++    await page.mouse.move(passageBounds.right + 1, passageBounds.y, { steps: 12 });
++    await page.mouse.up();
++    await action.waitFor({ state: 'visible' });
++    assert.equal(await page.evaluate(() => window.getSelection().toString().trim()), text);
++    await page.keyboard.press('Escape');
++    await action.waitFor({ state: 'hidden' });
++    await selectPassage();
++    const bounds = await action.boundingBox();
++    assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= width, 'action fits viewport');
++    assert.ok(bounds.width > 90 && bounds.height < 44, 'label fits on one line');
++    await page.screenshot({ path: `/tmp/quote-to-chat-${width}.png` });
++    await action.click();
++    const expected = `Keep my question.\n\nFrom ${source}:\n> ${text}\n\n`;
++    await page.waitForFunction(value => document.querySelector('textarea').value === value, expected);
++    assert.equal(await input.inputValue(), expected);
++    assert.equal(await input.evaluate(el => document.activeElement === el && el.selectionStart === el.value.length), true, 'composer focused at end');
++    assert.equal(sends, 0, 'quoting does not send');
++    assert.equal(await action.count(), 0);
++    await page.reload(); await input.waitFor();
++    assert.equal(await input.inputValue(), expected, 'quoted draft survives reload');
++    await page.locator('.markdown-document').waitFor();
++    await selectPassage();
++    await page.keyboard.press('Escape');
++    await action.waitFor({ state: 'hidden' });
++    assert.equal(await input.inputValue(), expected, 'escape leaves draft unchanged');
++    // Keyboard activation must keep the captured passage even when focus moves.
++    await selectPassage();
++    await action.focus(); await page.keyboard.press('Enter');
++    await page.waitForFunction(value => document.querySelector('textarea').value === value, `${expected}\n\nFrom ${source}:\n> ${text}\n\n`);
++    assert.equal(await input.inputValue(), `${expected}\n\nFrom ${source}:\n> ${text}\n\n`);
++    assert.equal(sends, 0);
++    // Quoting while the agent works still only edits the draft; it is not steering.
++    await page.evaluate(snapshot => window.chatEvents.onmessage({ data: JSON.stringify({ ...snapshot, busy: true }) }), state);
++    await page.getByRole('button', { name: 'Stop Pi and pause unsent messages' }).waitFor();
++    await selectPassage(); await action.click();
++    await page.waitForFunction(value => document.querySelector('textarea').value === value, `${expected}\n\nFrom ${source}:\n> ${text}\n\n\n\nFrom ${source}:\n> ${text}\n\n`);
++    assert.equal(sends, 0);
++    await page.evaluate(snapshot => window.chatEvents.onmessage({ data: JSON.stringify(snapshot) }), state);
++    await page.getByRole('button', { name: 'Send message', exact: true }).waitFor();
++    // Selection outside the article must not expose the action.
++    await input.selectText(); await wait();
++    assert.equal(await action.count(), 0);
++    await input.fill('x'.repeat(99990));
++    await selectPassage(); await action.click();
++    await page.getByRole('alert').filter({ hasText: 'exceed the draft limit' }).waitFor();
++    assert.equal((await input.inputValue()).length, 99990, 'oversized insertion preserves draft');
++    // Navigation/close invalidates the captured selection; split/draft remain usable.
++    await input.fill('Editable draft'); await selectPassage();
++    await page.locator('.markdown-document a').click();
++    await action.waitFor({ state: 'hidden' });
++    await page.locator('.document-toolbar strong').filter({ hasText: 'docs/next.md' }).waitFor();
++    await page.getByRole('button', { name: 'Close document', exact: true }).click();
++    assert.equal(await page.locator('.markdown-document').count(), 0);
++    assert.equal(await input.inputValue(), 'Editable draft');
++    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
++    await input.fill('An explicitly sent message');
++    await page.getByRole('button', { name: 'Send message', exact: true }).click();
++    await page.waitForFunction(() => document.querySelector('textarea').value === '');
++    await wait(); assert.equal(sends, 1, 'only explicit send reaches chat API');
++    assert.deepEqual(errors, []);
++    await context.close();
++    console.log(`PASS ${width}px: drawer, selection action, attributed draft, focus, reload, keyboard, dismissal, limits, navigation, explicit send.`);
++  }
++} finally { await browser.close(); }

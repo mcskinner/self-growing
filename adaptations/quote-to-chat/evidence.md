@@ -1,0 +1,28 @@
+# Quote-to-chat extraction evidence
+
+## Sources and scope
+- Read the local `adapt` skill, this directory's `extract.md`, `adaptation.json`, `reference.patch`, and the initial `adaptation.md` template.
+- Confirmed the source checkout HEAD is `e97bfc6edca92b8786ef3108f8c019d0f4b5048e`. Metadata identifies base `0d6ebc22c84fed9bc3848b6beb8ed3f957d71c61` and that head; `transcript_included` is false.
+- Inspected the quote formatter and relevant reader/composer implementation at HEAD. Reviewed the captured unit/browser test definitions in the patch. Inspected the source commit's file list and its additional README, backend document-access, and backend-test diff to distinguish bundled changes.
+- Used the supplied reviewed-intent summary, not a private transcript: the owner chose quote-to-chat rather than comment-then-review, reviewed and retained this implementation, and did not choose richer locators or renderer migration. This is retrospective, implementation-first extraction, not evidence of compliance with a prospective protocol.
+
+## Observed in source, not a transfer result
+- `frontend/documents.tsx` captures browser selection text only when both endpoints are inside the rendered article and the selection is nonblank. A nearby “Add to chat” button transfers `{ path: doc.path, text }`; selection itself does not transfer anything. Pointer-down preserves the selection, keyboard focus can retain it, Escape dismisses it, and document reload/navigation clears captured selection. Unmounting closes that reader's action.
+- `frontend/document-quotes.ts` appends plain text: `From <path>:` followed by Markdown blockquote lines and trailing space for continued writing. It preserves indentation and blank lines, normalizes CRLF line breaks, ignores whitespace-only passages, and rejects a combined draft over the source's 100,000-character limit. That exact formatting and numeric limit are source choices, not transfer requirements.
+- `frontend/main.tsx` passes a transient quote into the current chat. The quote effect updates the draft rather than invoking send, focuses the composer at the end, and uses the existing per-chat draft/cursor persistence. It reports errors for an oversized insertion or a chat that is still opening. The normal send path remains separate. These React effects, component wiring, and storage keys are not a prescribed implementation.
+- The selected text is rendered browser text, not original Markdown syntax. Attribution uses the loaded document's path; there are no line numbers, durable anchors, or stored annotation records. Existing `marked`/DOMPurify rendering remains in place.
+
+## Test evidence and limits
+The captured unit tests specify preservation of an existing draft, attribution of multiline passages, empty/repeated quotes, whitespace-only no-op, and overflow rejection. The captured browser script specifies 1440px and 390px viewports, pointer selection, keyboard activation, action positioning, Escape, composer focus, draft reload persistence, repeated quoting, quoting while busy without sending, exclusion of composer selections, overflow preservation, navigation/close invalidation, and a subsequent explicit send. It mocks API/chat traffic and creates some selections programmatically; it also includes a pointer-selection check.
+
+These are inspected assertions, not observed passes in this extraction. No tests, browser session, or live-agent interaction were run. There is no independent evidence here for all browsers, touch selection, assistive technologies, complex rendered passages, or session-switch races. The owner's retention decision comes from the supplied summary, not independently reviewed conversation records. No successful application to another recipient is claimed.
+
+## Unrelated evidence and exclusions
+The captured patch is mixed. Its `DocumentPicker`/`ProjectDocs` changes introduce a navigation tree and modal drawer, animations, loading/retry states, and drawer styling; its browser script also tests drawer layout/navigation. Those are not prerequisites for quoting in a recipient that already has a reader and chat. Toolbar/layout polish and highlight colors likewise do not define the workflow.
+
+The full commit additionally changes `backend/documents.py`, `tests/test_documents.py`, and `README.md`, beyond the six paths listed in the capture metadata. Backend changes replace native file picking with a docs tree, constrain reads/link resolution to `docs/`, return project-relative paths, and omit hidden entries/symlinks from the tree. Those source navigation/access-policy changes and their tests are excluded, not requirements to narrow a recipient's existing document access. Quoting only needs that reader's valid source path. The README corroborates editable attributed drafts and no send until explicit submission, but also documents the unrelated drawer/access changes.
+
+## Extraction judgment
+The portable unit is the explicit passage-to-current-draft handoff, not highlighting alone or the entire commit. Draft preservation, attribution, no implicit send, and stale-selection/overflow protection preserve that intent. The description leaves UI placement, citation syntax, renderer, path conventions, limits, and component architecture to the recipient. This is synthesis from the reviewed intent and inspected implementation, not demonstrated transfer necessity for every detail.
+
+Only `adaptation.md` and this `evidence.md` were completed. No runtime, tests, tooling, protocol, skill, or Git state was changed; no commit was made. No prior applications, experiments, other chats, or saved sessions were inspected, and no private transcript was copied.
