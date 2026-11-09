@@ -61,8 +61,10 @@ The [quote-to-chat transfer](quote-to-chat/README.md) starts from an ordinarily 
 owner-reviewed feature. A fresh extraction excluded mixed-in navigation work; a first transfer
 missed action placement, a one-sentence retry exposed implementation bugs, and a separately
 prompted repair passed independent mocked browser checks. A fresh uncoached replication with
-unchanged inputs then repeated the label-overflow failure. Original failures remain recorded;
-this is not proof of first-try transfer or superiority of implementation-first development.
+unchanged inputs then repeated the label-overflow failure. A bounded verification-guidance batch
+produced a fresh pass, a settled-caret failure, and another fresh pass after a second acceptance
+clarification. The latest revision has one clean same-base pass, not replicated reliability.
+Original failures remain recorded; no superiority of implementation-first development is established.
 
 ## Produce the next adaptation
 
