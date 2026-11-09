@@ -9,4 +9,4 @@ Explicitly bring selected document text and its source path into an editable cha
 
 Source: reviewed feature `e97bfc6`. The reference patch is mixed with navigation work; do not apply it wholesale. The protocol was written before extraction/application, not before the original feature's development.
 
-Transfer outcome: pending. No claim of broad portability or superiority of implementation-first development.
+The [first transfer](applications/reader-01/coordinator-review.md) passed functional checks but missed nearby-highlight placement. A [one-sentence revision](revision-notes.md) is frozen for a fresh same-base retry. No claim of broad portability or superiority of implementation-first development.
