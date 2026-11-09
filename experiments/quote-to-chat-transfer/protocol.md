@@ -49,8 +49,14 @@ Reviewed adaptation artifacts under `adaptations/quote-to-chat/`; protocol and o
 
 ## Results
 
-Pending.
+First application `af11bde` used the unedited extraction frozen at `3834b42`. Existing evaluation passed, and independent mocked Chromium checks passed the functional scenarios at 1440px and 390px, including cross-chat draft isolation. It did not meet the nearby-highlight interaction criterion: the recipient chose a permanent quote action row. See the [first coordinator review](../../adaptations/quote-to-chat/applications/reader-01/coordinator-review.md) for observations, test-harness corrections, limitations, and preserved evidence. No target application was integrated into the running app.
+
+### [2026-11-08] prospective amendment: one minimal-guidance retry
+
+Before starting a second application, add one sentence requiring the action beside the current highlight rather than a permanent quote toolbar. Freeze that revision, prepare a new worktree at the same original target commit, and run a fresh applier with its generated brief/normal context and unchanged reference evidence/tooling. Do not supply the first result, coordinator script, or repair coaching. Replay the corrected independent recipe unchanged. This tests one observed fidelity gap; no claim of broad generalization or a controlled causal comparison.
+
+Second application: pending.
 
 ## Lessons and next experiment
 
-Pending. This trial cannot compare implementation-first and adaptation-first workflows; a later prospective trial would be needed for that question.
+The first result separates functional transfer from interaction fidelity: leaving placement unspecified allowed a reasonable but different UI. Avoid adding the entire source implementation to fix one missing experience requirement. This trial cannot compare implementation-first and adaptation-first workflows; a later prospective trial would be needed for that question.

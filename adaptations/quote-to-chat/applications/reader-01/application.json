@@ -1,0 +1,17 @@
+{
+  "format": 1,
+  "adaptation": "quote-to-chat",
+  "adaptation_path": "/Users/michael/dev/self-growing/adaptations/quote-to-chat",
+  "adaptation_source_head": "e97bfc6edca92b8786ef3108f8c019d0f4b5048e",
+  "description_sha256": "58a3223c9a6e193139464ab849d24620c47f92040c9c42955edd9290766fa2d5",
+  "base": "0d6ebc22c84fed9bc3848b6beb8ed3f957d71c61",
+  "worktree": "/Users/michael/dev/self-growing-quote-reader-01",
+  "feedback": "feedback.md",
+  "head": "af11bdee01016589227f8275c807fe1db56bed7e",
+  "commits": [
+    "af11bdee01016589227f8275c807fe1db56bed7e"
+  ],
+  "commit_links": [
+    "https://github.com/mcskinner/self-growing/commit/af11bdee01016589227f8275c807fe1db56bed7e"
+  ]
+}
