@@ -1,7 +1,5 @@
-"""Read original Markdown files without imports, metadata, or document writes."""
+"""Read-only project documentation, confined to docs/."""
 
-import asyncio
-import sys
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
@@ -14,15 +12,14 @@ MAX_BYTES = 2_000_000
 
 def document_path(path: str) -> Path:
     try:
-        supplied = Path(path)
-        target = (ROOT / supplied).resolve()
-        if not supplied.is_absolute() and not target.is_relative_to(ROOT.resolve()):
-            raise HTTPException(404, "Markdown document not found")
+        target = (ROOT / path).resolve()
+        if not target.is_relative_to((ROOT / "docs").resolve()):
+            raise ValueError
         if target.suffix.lower() not in {".md", ".markdown"} or not target.is_file():
-            raise HTTPException(404, "Markdown document not found")
+            raise ValueError
         return target
     except (OSError, ValueError, RuntimeError):
-        raise HTTPException(404, "Markdown document not found") from None
+        raise HTTPException(404, "Project document not found") from None
 
 
 def read_document(target: Path):
@@ -31,49 +28,34 @@ def read_document(target: Path):
             data = file.read(MAX_BYTES + 1)
         if len(data) > MAX_BYTES:
             raise HTTPException(413, "Document is too large (maximum 2 MB)")
-        return {"path": str(target), "content": data.decode("utf-8")}
+        return {"path": target.relative_to(ROOT).as_posix(), "content": data.decode("utf-8")}
     except UnicodeDecodeError:
         raise HTTPException(422, "Document is not UTF-8 text") from None
     except OSError:
-        raise HTTPException(404, "Cannot read Markdown document") from None
+        raise HTTPException(404, "Cannot read project document") from None
 
 
-async def choose_markdown_file():
-    if sys.platform != "darwin":
-        raise HTTPException(501, "The native file chooser currently supports macOS only")
-    script = """try
-        set picked to choose file with prompt "Open Markdown" of type {"md", "markdown"}
-        return POSIX path of picked
-    on error number -128
-        return ""
-    end try"""
-    process = await asyncio.create_subprocess_exec(
-        "/usr/bin/osascript",
-        "-e",
-        script,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-    )
+@router.get("/tree")
+async def get_tree():
+    def children(directory: Path):
+        entries = []
+        for item in sorted(directory.iterdir(), key=lambda p: (not p.is_dir(), p.name.lower())):
+            # Do not traverse symlinks or hidden folders, even within docs/.
+            if item.is_symlink() or item.name.startswith("."):
+                continue
+            path = item.relative_to(ROOT).as_posix()
+            if item.is_dir():
+                nested = children(item)
+                if nested:
+                    entries.append({"path": path, "name": item.name, "children": nested})
+            elif item.suffix.lower() in {".md", ".markdown"}:
+                entries.append({"path": path, "name": item.name})
+        return entries
+
     try:
-        async with asyncio.timeout(300):
-            stdout, stderr = await process.communicate()
-    except TimeoutError:
-        raise HTTPException(504, "File chooser timed out; please retry") from None
-    finally:
-        if process.returncode is None:
-            process.kill()
-            await process.wait()
-    if process.returncode:
-        raise HTTPException(500, f"Could not open file chooser: {stderr.decode().strip()}")
-    return stdout.decode().rstrip("\r\n")
-
-
-@router.post("/pick")
-async def pick_document():
-    selected = await choose_markdown_file()
-    if not selected:
-        return {"path": None}
-    return {"path": read_document(document_path(selected))["path"]}
+        return {"entries": children(ROOT / "docs") if (ROOT / "docs").is_dir() else []}
+    except OSError:
+        raise HTTPException(500, "Cannot list project docs") from None
 
 
 @router.get("/content")
@@ -88,10 +70,9 @@ async def resolve_document(path: str, link: str):
         if url.scheme or url.netloc or not url.path:
             raise ValueError
         current = document_path(path)
-        relative = Path(unquote(url.path))
-        target = (current.parent / relative).resolve()
-        if not Path(path).is_absolute() and not target.is_relative_to(ROOT.resolve()):
+        target = (current.parent / unquote(url.path)).resolve()
+        if not target.is_relative_to((ROOT / "docs").resolve()):
             raise ValueError
     except (ValueError, OSError, RuntimeError):
-        raise HTTPException(422, "Invalid document link") from None
+        raise HTTPException(422, "Link is outside project docs") from None
     return {"path": read_document(document_path(str(target)))["path"]}

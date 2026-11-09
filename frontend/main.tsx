@@ -10,7 +10,8 @@ import { composerError } from './chat-errors';
 import './transcript';
 import './style.css';
 import './reader.css';
-import { DocumentPicker, DocumentView } from './documents';
+import { DocumentPicker, DocumentView, ProjectDocs } from './documents';
+import { appendDocumentQuote, MAX_DRAFT_LENGTH, type DocumentQuote } from './document-quotes';
 
 interface State {
   messages: Message[]; busy: boolean; error: string | null; activity: string;
@@ -21,6 +22,11 @@ function App() {
   const [state, setState] = useState<State | null>(null);
   const [connected, setConnected] = useState(false);
   const [documentPath, setDocumentPath] = useState(() => sessionStorage.getItem('open-document') || '');
+  const [docsOpen, setDocsOpen] = useState(false);
+  const [quote, setQuote] = useState<DocumentQuote | null>(null);
+  function toggleDocs() {
+    setDocsOpen(open => !open);
+  }
   const [chatWidth, setChatWidth] = useState(() => {
     const saved = Number(localStorage.getItem('chat-width'));
     return Number.isFinite(saved) && saved >= 320 ? Math.min(saved, 900) : 480;
@@ -53,7 +59,8 @@ function App() {
   // Each conversation owns its draft/outbox closures, even if an old request finishes late.
   return <div className={`app ${documentPath ? 'workspace' : ''} ${resizing ? 'resizing' : ''}`}
     ref={workspace} style={{ '--chat-width': `${chatWidth}px` } as CSSProperties}>
-    <Chat key={state.sessionId || 'initial'} state={state} connected={connected} onOpenDocument={openDocument} />
+    <Chat key={state.sessionId || 'initial'} state={state} connected={connected} docsOpen={docsOpen}
+      onToggleDocs={toggleDocs} quote={quote} onQuoteAdded={() => setQuote(null)} />
     {documentPath && <div className="panel-resizer" role="separator" tabIndex={0}
       aria-label="Resize chat panel" aria-orientation="vertical" aria-valuemin={320} aria-valuemax={900} aria-valuenow={chatWidth}
       onDoubleClick={() => resizeChat(480)}
@@ -75,12 +82,15 @@ function App() {
         }
       }} />}
     {documentPath && <DocumentView key={documentPath} path={documentPath} busy={state.busy}
-      onClose={() => openDocument('')} onOpen={openDocument} />}
+      onClose={() => openDocument('')} onOpen={openDocument} onQuote={setQuote} />}
+    <ProjectDocs open={docsOpen} path={documentPath} busy={state.busy}
+      onClose={() => setDocsOpen(false)} onOpen={openDocument} />
   </div>;
 }
 
-function Chat({ state, connected, onOpenDocument }: {
-  state: State; connected: boolean; onOpenDocument: (path: string) => void;
+function Chat({ state, connected, docsOpen, onToggleDocs, quote, onQuoteAdded }: {
+  state: State; connected: boolean; docsOpen: boolean; onToggleDocs: () => void;
+  quote: DocumentQuote | null; onQuoteAdded: () => void;
 }) {
   const draftKey = chatKey(state.sessionId, 'draft');
   const cursorKey = chatKey(state.sessionId, 'draft-cursor');
@@ -96,6 +106,25 @@ function Chat({ state, connected, onOpenDocument }: {
   const scroller = useRef<HTMLElement>(null);
   const follow = useRef(true);
   const input = useRef<HTMLTextAreaElement>(null);
+
+  const focusQuote = useRef(false);
+  useEffect(() => {
+    if (!quote) return;
+    try {
+      if (startingSession) throw new Error('Wait for the chat to open before adding a quote.');
+      setDraft(appendDocumentQuote(draft, quote));
+      setError(''); focusQuote.current = true;
+    } catch (err) { setError(err instanceof Error ? err.message : String(err)); }
+    onQuoteAdded();
+  }, [quote, onQuoteAdded, draft, startingSession]);
+  useLayoutEffect(() => {
+    if (!focusQuote.current || !input.current) return;
+    focusQuote.current = false;
+    const element = input.current;
+    element.focus();
+    element.setSelectionRange(draft.length, draft.length);
+    saveComposer();
+  }, [draft]);
 
   function saveComposer() {
     const element = input.current;
@@ -207,7 +236,7 @@ function Chat({ state, connected, onOpenDocument }: {
       <a className="brand" href="/" aria-label="Self-growing home"><span className="seed" aria-hidden="true">✳</span><span className="brand-name">self-growing</span></a>
       <div className="header-actions">
         <span className="connection" title="Connection to the local chat backend"><i className={connected ? 'online' : ''} />{connected ? 'Connected' : 'Reconnecting…'}</span>
-        <DocumentPicker onOpen={onOpenDocument} />
+        <DocumentPicker open={docsOpen} onToggle={onToggleDocs} />
         <ChatDisplay showDetails={showDetails} onChange={setShowDetails} />
       </div>
     </header>
@@ -255,7 +284,7 @@ function Chat({ state, connected, onOpenDocument }: {
         </li>)}</ol>
       </section>}
       <form onSubmit={event => { event.preventDefault(); send(); }}>
-        <textarea ref={input} value={draft} disabled={startingSession} rows={1} maxLength={100000} aria-label="Message Pi"
+        <textarea ref={input} value={draft} disabled={startingSession} rows={1} maxLength={MAX_DRAFT_LENGTH} aria-label="Message Pi"
           placeholder={state.busy ? 'Steer Pi while it works…' : 'Ask Pi to change this app…'}
           onSelect={saveComposer} onChange={event => { setDraft(event.target.value); saveComposer(); }}
           onKeyDown={event => {

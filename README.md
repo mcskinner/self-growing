@@ -91,20 +91,26 @@ WEB_PORT=5177 API_PORT=8107 ./install.sh
 `PI_BIN` can point to a different Pi executable. Python is pinned to the 3.13 series;
 uv can install it if needed. Ctrl+C stops the dev servers.
 
-## Read local Markdown
+## Read project docs and quote into chat
 
-Use **Open Markdown** to choose an original file (native chooser on macOS), or enter
-its local path. Absolute paths may point outside this workspace; relative paths must
-remain inside it after symlink resolution. Files must be UTF-8 `.md` or `.markdown`,
-at most 2 MB. Reading never imports, edits, or adds metadata to the original.
+The folder icon opens **Project docs**, a right-side drawer listing Markdown under `docs/`.
+It overlays either full-screen chat or the reader without resizing the layout. Choose a
+file to close the drawer and read it beside chat; Escape or the backdrop dismisses the drawer.
+Files must be UTF-8 `.md` or `.markdown`, at most 2 MB. Reading never imports, edits, or
+adds metadata to the original. Hidden entries and symlinks are omitted from the tree;
+document reads and relative Markdown links stay within `docs/` after path resolution.
+
+Select a passage in the reader, then use **Add to chat** beside the highlight. It appends
+an editable blockquote and source path to the current chat draft, preserving existing text,
+and focuses the composer at the end. Nothing is sent until you send it. Escape dismisses
+the selection action. This is quoting, not a persistent annotation or comment system.
 
 The reader stays open when switching chats and remembers its path for this browser tab.
 Drag the desktop divider, or focus it and use Left/Right (Home/End for limits), to resize;
-narrow screens stack reader above chat. **Close document** restores chat alone.
-Documents refresh after agent work, or with **Refresh**. Images and embedded resources
-are omitted; external web/email links open only when clicked. Relative links do not
-open other files—choose those explicitly. This remains a trusted, local-only app, not
-a hosted filesystem sandbox.
+narrow screens stack chat above the reader. **Close document** restores chat alone.
+Documents refresh after agent work; a failed load offers Retry. Images and embedded
+resources are omitted; external HTTP(S) links open only when clicked. This remains a
+trusted, local-only app, not a hosted filesystem sandbox.
 
 ## How it works
 
