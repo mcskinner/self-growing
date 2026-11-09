@@ -89,7 +89,9 @@ Each application is autonomous within its first invocation, committed and record
 
 If reader-04 passes, use another fresh same-base run with identical guidance to test replication. Two independently passing fresh applications on the same inputs are a stopping point, not evidence of broad portability. If a run fails, preserve it and diagnose the observed gap before deciding whether the next run merits a minimal guidance amendment or unchanged replication; commit any amendment before invocation. Do not automatically turn implementation-specific fixes into instructions. At most three new application invocations are authorized; no prompted repair chain in this batch. Stop earlier if useful evidence is sufficient, and report uncertainty rather than manufacturing a clean outcome. No skill/tooling hardening or target-baseline changes are part of this batch.
 
-Additional trial results: pending.
+Reader-04 (`788274c3c42c842e2f142310cc5bbb09e1df9222`) used the verification-guidance description frozen at `f138085`, SHA-256 `06f125519f09d08535a8070353d6e2ab8be3bbed7a059679a729caf99dd441d2`. Record/evaluate and unchanged independent desktop/narrow acceptance passed on the first committed application, without coordinator repair or verifier adjustments. The applier's own browser test now asserts actual label text geometry and identifies inherited global button sizing. See the [first verification-guidance review](../../adaptations/quote-to-chat/applications/reader-04/coordinator-review.md). This is one positive same-base result, not a controlled causal comparison.
+
+As prospectively planned, reader-05 will use the identical frozen description, original reference/evidence, baseline, skill/tooling, model configuration, safety/context prompt, and held-out verifier in a new worktree/session. No further guidance changes or reader-04 outcomes/code are supplied. Replication result: pending. New application budget used: 1 of at most 3.
 
 ## Lessons and next experiment
 

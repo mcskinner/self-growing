@@ -1,0 +1,19 @@
+{
+  "format": 1,
+  "id": "quote-to-chat",
+  "status": "draft",
+  "source_base": "0d6ebc22c84fed9bc3848b6beb8ed3f957d71c61",
+  "source_head": "e97bfc6edca92b8786ef3108f8c019d0f4b5048e",
+  "paths": [
+    "frontend/documents.tsx",
+    "frontend/main.tsx",
+    "frontend/reader.css",
+    "frontend/document-quotes.ts",
+    "tests/document-quotes.test.ts",
+    "tests/quote-to-chat.browser.mjs"
+  ],
+  "commit_links": [
+    "https://github.com/mcskinner/self-growing/commit/e97bfc6edca92b8786ef3108f8c019d0f4b5048e"
+  ],
+  "transcript_included": false
+}
