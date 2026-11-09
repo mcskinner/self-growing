@@ -30,4 +30,4 @@ That does not yet imply one global adaptation ID, one implementation, or a packa
 - How should dependencies differ from common combinations or preferences?
 - What can safely be unapplied, and what needs a deliberate replacement or compensation?
 
-Related: [minimal core and workshop](minimal-core-and-workshop.md), [hardening](minimal-instructions-and-hardening.md), and [control of agency](control-plane-and-agency.md). Source: the user's proposal in this chat, summarized in [discussion context](sources/discussion-context.md).
+Related: [minimal core and workshop](minimal-core-and-workshop.md), [hardening](minimal-instructions-and-hardening.md), and [control of agency](control-plane-and-agency.md). Origin: the user's proposal during the Markdown-reader experiment.

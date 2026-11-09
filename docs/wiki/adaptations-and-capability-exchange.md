@@ -8,7 +8,7 @@ An adaptation is an explained transformation plus a history of applications, inc
 
 A package reuses an implementation behind an interface. A starter or seed supplies initial material. An adaptation can reshape boundaries—layout, state, interaction conventions—without requiring every recipient to expose the same plugin API. These forms can coexist: successful recurring adaptations might eventually reveal good package boundaries.
 
-This is one possible interpretation of the journal's “component library for the agentic age”: examples and intent that an agent can integrate contextually, rather than only components installed unchanged. See the [journal](sources/self-growing-journal.md) and [discussion](sources/discussion-context.md).
+This is one possible interpretation of the author's “component library for the agentic age”: examples and intent that an agent can integrate contextually, rather than only components installed unchanged. The package/seed/adaptation distinction is an assistant interpretation of that exploration, not a settled architecture.
 
 ## Branches as structure
 

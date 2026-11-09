@@ -4,7 +4,7 @@ Status: exploratory; no reporting service or shared registry implemented.
 
 ## From family tree to shared experience
 
-The [journal](sources/self-growing-journal.md) imagines forks reporting lessons about growing software and exchanging “genes” through a library rather than necessarily peer to peer. Its Portiid/hive-mind analogy points toward accumulated, reusable knowledge—not a settled networking or governance design.
+The author's original notes imagine forks reporting lessons about growing software and exchanging “genes” through a library rather than necessarily peer to peer. Its Portiid/hive-mind analogy points toward accumulated, reusable knowledge—not a settled networking or governance design.
 
 The potentially useful shared material is more than code: [adaptation descriptions](adaptations-and-capability-exchange.md), application histories, failures, repairs, and observations about which transformations transfer well.
 

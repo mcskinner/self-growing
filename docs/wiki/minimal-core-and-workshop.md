@@ -12,7 +12,7 @@ There is no promise that workshop changes will eventually merge into starter. Ke
 
 ## What stays optional
 
-The [journal](sources/self-growing-journal.md) names left-pane chat, project management, a control plane, an opinionated component library, and curated skills as possible growth directions. These are possibilities, not an agreed starter feature set. The later [discussion](sources/discussion-context.md) adds a protocol lab and tighter GitHub issue integration as workshop interests, not implemented capabilities.
+The author's original notes name left-pane chat, project management, a control plane, an opinionated component library, and curated skills as possible growth directions. These are possibilities, not an agreed starter feature set. Later discussion adds tighter GitHub issue integration and a protocol lab as workshop interests. The [adaptation lab](../../adaptations/README.md) now implements a file-based experiment loop; that does not establish the broader project-management tooling.
 
 The kit is the garden bed; “seeds” was proposed as a metaphor for curated growth material. The branch name `starter` deliberately leaves “seed” available without committing it to a protocol meaning.
 

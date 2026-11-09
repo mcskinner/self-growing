@@ -6,7 +6,7 @@ Status: central idea with a working local prototype; broader implications explor
 
 Even with increasingly capable coding agents and orchestration, small personal tools still need their owner to break glass and fix the system. Embedding the coding chat in the tool puts use, feedback, and repair behind one pane of glass. The user doesn't need to leave the app to ask for its next change.
 
-The [journal](sources/self-growing-journal.md) traces this from Copilot and IDE assistants through chat-first coding and headless orchestration. The aim here is not another production development platform: examples include a meal planner or a pull-request manager, grown around a particular person's needs.
+The author's original notes trace this motivation from Copilot and IDE assistants through chat-first coding and headless orchestration. The aim here is not another production development platform: examples include a meal planner or a pull-request manager, grown around a particular person's needs.
 
 ## What exists
 

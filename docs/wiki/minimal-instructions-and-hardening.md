@@ -6,7 +6,7 @@ Status: working principle; fresh-context applications of revised guidance record
 
 The user's guiding advice is to seek the smallest instruction set that can deliver the outcome. Extra details often encode the known implementation and may not generalize. Keep intent, necessary boundaries, and observable success in the core; keep implementation-specific rationale and diffs available as evidence.
 
-This is not a claim that shorter is always better. The question is whether an instruction earns its place by improving transfers. The [adapt skill](../../.pi/skills/adapt/SKILL.md) embodies this working principle; the [discussion summary](sources/discussion-context.md) records its origin.
+This is not a claim that shorter is always better. The question is whether an instruction earns its place by improving transfers. The [adapt skill](../../.pi/skills/adapt/SKILL.md) embodies this working principle, proposed by the user during the initial adaptation exploration.
 
 ## A loop above testing
 

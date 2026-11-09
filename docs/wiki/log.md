@@ -4,7 +4,7 @@ Chronological record of meaningful synthesis and maintenance events. Append new 
 
 ## [2026-11-08] synthesis | Initial map from the full journal and project discussion
 
-Preserved the [full journal](sources/self-growing-journal.md) and recorded [subsequent discussion context](sources/discussion-context.md), distinguishing user preferences, assistant interpretations, and implemented evidence. Created the [concept map](index.md): embedded self-modification, minimal core/workshop, capability exchange, minimal-instruction hardening, federated hardening, collective learning, and control of agency.
+Preserved the full journal and recorded subsequent discussion context as separate source documents, distinguishing user preferences, assistant interpretations, and implemented evidence. (Those documents were later removed; see the source-archive correction below.) Created the [concept map](index.md): embedded self-modification, minimal core/workshop, capability exchange, minimal-instruction hardening, federated hardening, collective learning, and control of agency.
 
 The full journal restores the original motivation—repairing small tools through one pane of glass—and broader possibilities that adaptation-focused discussion alone could obscure. These are related explorations, not a feature backlog. Adopted Karpathy's index/log/maintenance pattern without a mandatory raw-source pipeline.
 
@@ -63,3 +63,15 @@ Captured the owner's [sharing and deployment](sharing-and-deployment.md) work tr
 Read all 16 wiki Markdown pages, including the index, conventions, log, and sources; checked local links/index coverage and reviewed status claims against the experiment/application records and subsequent owner feedback. Mechanical lint passed. Corrected stale statements that guidance remained untested and that no evidence justified revising left-chat; distinguished fresh combined application from controlled instruction-effect comparisons. Updated acceptance evidence with the later visual rejection, fresh fidelity retry, and explicit owner acceptance. Removed an obsolete publication caveat from the discussion summary, connected later proposals, and captured selective evidence retention without adding another concept page.
 
 Preserved the original journal and historical log entries, including statuses that were true at the time. Kept open questions about granularity, dependencies, privacy, governance, and deployment unresolved. The principle-guided header experiment has not run; its final reviewed target must still be pinned after the current border/header refinement. External URL reachability, browser anchor targets, and provider/native-dialog behavior were not validated by this wiki pass.
+
+## [2026-11-08] correction | Remove the separate source archive
+
+Reviewed the original wiki discussion after the owner questioned the two source documents. The agreed approach was linked synthesis of the project and its discussions, with an index, chronological log, and linting—not a copied source archive. The initial filing incorrectly expanded a request to re-read the journal into preserving it and creating a separate discussion summary.
+
+Removed both source documents after reviewing their content against the concept pages. Retained the useful synthesis and user/assistant attribution in those pages, linked to existing project evidence where appropriate, and clarified the conventions against duplicating journals or transcripts. Historical log entries still describe what happened at the time; their obsolete source links are now plain text. The original material remains in Git history and the existing chat transcripts; no Pi session files were changed.
+
+## [2026-11-08] discussion | Quote-to-chat scope and source-location tradeoffs
+
+Captured [document-to-chat interaction](document-to-chat.md): the owner's preference for quoting into a draft rather than collecting comments for review, the distinction between useful workflow adaptations and shared selection mechanics, and the choice to develop/review this feature before extracting an adaptation. The implementation started before a frozen protocol; it is not retroactively a prospective experiment.
+
+Recorded renderer investigation: existing `marked` has raw tokens but no source positions; `markdown-it` supplies block line ranges; `remark` supplies positioned block/inline nodes. An isolated probe explored representative Markdown, but no library automatically solves arbitrary rendered-selection-to-source mapping. The owner chose to retain the current implementation and path-plus-quote attribution. No renderer migration or richer locator was implemented; this filing changes wiki documentation only.

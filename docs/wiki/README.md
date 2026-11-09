@@ -8,10 +8,10 @@ These pages are synthesis, not requirements, commitments, agent instructions, or
 
 - Write concise, linked concept pages. Update an existing page before creating a near-duplicate. Human edits are welcome; the agent helps with synthesis and bookkeeping.
 - Distinguish implemented behavior, observations, hypotheses, and open questions. Do not turn an appealing analogy into a proven mechanism.
-- Link evidence where practical: source notes, code at a commit, experiment protocols, and application feedback. Mark conversation summaries as summaries, not quotations or independently verified facts.
+- Link evidence where it already lives: code at a commit, experiment protocols, and application feedback. Synthesize conversations into the relevant concept pages; distinguish user proposals from assistant interpretations rather than treating summaries as independent evidence. Do not maintain a separate source-document archive in the wiki.
 - Preserve disagreements and uncertainty. New evidence can supersede a claim; explain why rather than silently rewriting the history of an experiment.
 - Keep the index navigable and append significant synthesis, discussion, or lint events to the log. No entry is needed for every typo or file edit. Git preserves the exact edits; the log explains the intellectual event.
-- Review private information before filing it. Do not copy saved chats wholesale or modify Pi's sessions. The journal here was explicitly supplied for this exploration.
+- Review private information before filing it. Do not copy saved chats wholesale or modify Pi's sessions. Journal notes and transcripts are material to consult, not documents to duplicate into the wiki.
 
 ## Operations
 

@@ -5,6 +5,7 @@ This is a working wiki, not a plan to build everything below. [Conventions](READ
 ## Why and where growth happens
 
 - [Self-growing software](self-growing-software.md) — embedded agency, one pane of glass, and the persistent need to repair our own tools.
+- [Document-to-chat interaction](document-to-chat.md) — quoting versus commenting, source-locator precision, renderer tradeoffs, and the decision to keep the current reader.
 - [Sharing and deployment](sharing-and-deployment.md) — read-only demos, chat-free distribution, fork-to-grow, contributor/viewer access, and durable workflows.
 - [Minimal core and workshop](minimal-core-and-workshop.md) — a small starting point alongside a freely growing tool that helps build the kit.
 - [Pluggable project principles](pluggable-principles.md) — optional reusable guidance, recommended starting sets, and an equally valid unguided path.
@@ -19,10 +20,7 @@ This is a working wiki, not a plan to build everything below. [Conventions](READ
 - [Federated hardening](federated-hardening.md) — locally distilled improvement candidates when implementation evidence cannot travel.
 - [Collective learning](collective-learning.md) — a shared library of experience without assuming a central view of everyone's workspace.
 
-## Sources and evidence
-
-- [Full journal](sources/self-growing-journal.md) — the author's motivation and initial possibilities, followed by the first working-app experience.
-- [Discussion context](sources/discussion-context.md) — summarized subsequent decisions and ideas from this chat; not a raw transcript.
+## Project evidence and influences
 - [Adaptation lab](../../adaptations/README.md) — implemented capture/application/evaluation workflow.
 - [First experiment protocol](../../experiments/adaptation-loop/protocol.md) — plan, initial results, and limits of the evidence.
 - [Markdown-reader transfer](../../adaptations/markdown-reader/README.md) — initial blind applications, repair, failed visual acceptance, and an accepted fresh fidelity retry with local refinements.

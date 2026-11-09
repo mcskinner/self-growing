@@ -1,10 +1,10 @@
 # Control plane and agency
 
-Status: ideas from the journal; not a newly implemented control-plane feature.
+Status: exploratory ideas from the author's original notes; not a newly implemented control-plane feature.
 
 ## What guides growth?
 
-The [journal](sources/self-growing-journal.md) suggests goals, a mission statement, review steps that check changes against them, and even a builder persona: not only “what do you want to build?” but “who do you want to build it?”
+The author proposed goals, a mission statement, review steps that check changes against them, and even a builder persona: not only “what do you want to build?” but “who do you want to build it?”
 
 These address different questions:
 
@@ -21,7 +21,7 @@ A persona or mission statement is not an execution sandbox. Treating those as in
 
 The working project is trusted, local-only software. Pi can execute commands with the owner's permissions; browser request protections are not a sandbox. See the [project limitations](../../README.md#intentionally-limited).
 
-The journal also imagines an art-project extreme where anyone visiting could modify live software. That is a distinct speculative scenario. Vandalism, conflicting intentions, and authority become central; current local-app assumptions would not make public modification safe. This idea does not authorize exposing the existing app publicly.
+The author also imagined an art-project extreme where anyone visiting could modify live software. That is a distinct speculative scenario. Vandalism, conflicting intentions, and authority become central; current local-app assumptions would not make public modification safe. This idea does not authorize exposing the existing app publicly.
 
 ## Tensions
 

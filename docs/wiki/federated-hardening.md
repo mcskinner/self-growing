@@ -6,7 +6,7 @@ Status: proposed in discussion; not implemented or experimentally validated.
 
 When an application fails—or needs substantial local repair before its owner is satisfied—the recipient can iterate on the adaptation prompt locally and distill a suggested improvement. Sharing that candidate may be preferable to sending the implementation, transcript, or every debugging detail.
 
-Where privacy permits, the user prefers access to the actual diff so the receiving reviewer can perform its own diagnosis. Local distillation is an additional path, not a replacement for stronger evidence. See the [discussion context](sources/discussion-context.md).
+Where privacy permits, the user prefers access to the actual diff so the receiving reviewer can perform its own diagnosis. Local distillation is an additional path, not a replacement for stronger evidence.
 
 ## Possible exchange
 
