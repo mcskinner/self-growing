@@ -24,5 +24,5 @@ This is a working wiki, not a plan to build everything below. [Conventions](READ
 - [Adaptation lab](../../adaptations/README.md) — implemented capture/application/evaluation workflow.
 - [First experiment protocol](../../experiments/adaptation-loop/protocol.md) — plan, initial results, and limits of the evidence.
 - [Markdown-reader transfer](../../adaptations/markdown-reader/README.md) — initial blind applications, repair, failed visual acceptance, and an accepted fresh fidelity retry with local refinements.
-- [Quote-to-chat transfer](../../adaptations/quote-to-chat/README.md) — implementation-first extraction, a placement-guidance retry, and separately recorded repair with mocked browser acceptance.
+- [Quote-to-chat transfer](../../adaptations/quote-to-chat/README.md) — implementation-first extraction, a placement-guidance retry, a separately passing repair, and an uncoached replication that repeated label overflow.
 - [LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) — inspiration for persistent synthesis, the index, log, and lint loop.

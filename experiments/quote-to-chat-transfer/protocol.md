@@ -1,6 +1,6 @@
 # Experiment: transfer quote-to-chat from a reviewed implementation
 
-Status: first transfer, revised-description retry, and separately prompted repair completed; additional uncoached replication planned, 2026-11-08. Plan committed as `58bae20` before extraction/application, not before the source feature's development.
+Status: first transfer, revised-description retry, separate prompted repair, and additional uncoached replication completed, 2026-11-08. Plan committed as `58bae20` before extraction/application, not before the source feature's development.
 
 ## Question and hypothesis
 
@@ -77,10 +77,10 @@ Freeze these inputs before invocation:
 
 Record the first resulting commit/diff/feedback, run the existing evaluator, and independently replay desktop/narrow acceptance and inspect the selection-action screenshots. Keep any harness/setup issue distinct from implementation failures. Preserve a failure without silently repairing it; no automatic repair or additional instruction revision is part of this run. Do not integrate target runtime code into the running workshop. This is another closely related same-base application, not broad portability, a guarantee, or a comparison of development methods.
 
-Replication result: pending.
+Replication `47c4860104fd9a979651213e1764d51a31d0ddaa` passed unchanged record/evaluate and all functional scenarios of the byte-identical independent verifier at 1440px/390px. Nearby placement and settled composer-end-caret checks passed; the action's label overflowed inherited global button dimensions at both widths. Screenshot/code review confirms the failure. Overall acceptance failed, with no repair, verifier adjustment, or further description change. See the [uncoached replication review](../../adaptations/quote-to-chat/applications/reader-03/coordinator-review.md), frozen hashes, patch, feedback, and separate browser verdicts. No trial runtime code was integrated into the running app.
 
 ## Lessons and next experiment
 
-The first result separates functional transfer from interaction fidelity: leaving placement unspecified allowed a reasonable but different UI. One sentence clarified that experience; do not add the entire source implementation to fix one missing requirement. The revised application reached the intended UI form but exposed ordinary CSS/controlled-input integration bugs, which were repaired without inflating the description. Passing automated evaluation and applier-authored browser checks did not establish independent acceptance.
+The first result separates functional transfer from interaction fidelity: leaving placement unspecified allowed a reasonable but different UI. One sentence clarified that experience; do not add the entire source implementation to fix one missing requirement. The revised application reached the intended UI form but exposed ordinary CSS/controlled-input integration bugs, which were repaired without inflating the description. Passing automated evaluation and applier-authored browser checks did not establish independent acceptance. The additional uncoached replication passed functional/end-caret checks but repeated the button-label overflow on the unchanged description/reference/verifier. This is repeatable evidence of that target integration risk across two uncoached applications, not proof that a source-specific CSS instruction is the right hardening response. The current description has a repaired passing application but no fully passing uncoached application in these recorded trials.
 
 This is limited evidence from closely related targets, with reference code allowed. The repaired pass does not demonstrate first-try sufficiency or broad generalization. This trial cannot compare implementation-first and adaptation-first workflows; a later prospective trial would be needed for that question. No additional experiment is automatically scheduled.

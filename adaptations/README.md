@@ -60,7 +60,8 @@ the initial failed navigation acceptance rather than folding its fix into the fi
 The [quote-to-chat transfer](quote-to-chat/README.md) starts from an ordinarily developed,
 owner-reviewed feature. A fresh extraction excluded mixed-in navigation work; a first transfer
 missed action placement, a one-sentence retry exposed implementation bugs, and a separately
-prompted repair passed independent mocked browser checks. Original failures remain recorded;
+prompted repair passed independent mocked browser checks. A fresh uncoached replication with
+unchanged inputs then repeated the label-overflow failure. Original failures remain recorded;
 this is not proof of first-try transfer or superiority of implementation-first development.
 
 ## Produce the next adaptation

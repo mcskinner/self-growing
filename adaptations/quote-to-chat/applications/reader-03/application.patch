@@ -1,0 +1,373 @@
+diff --git a/frontend/document-quotes.ts b/frontend/document-quotes.ts
+new file mode 100644
+index 0000000..f9e5040
+--- /dev/null
++++ b/frontend/document-quotes.ts
+@@ -0,0 +1,10 @@
++export const DRAFT_LIMIT = 100000;
++
++/** Append rendered text without replacing or truncating any existing work. */
++export function appendDocumentQuote(draft: string, path: string, text: string): string {
++  if (!text.trim()) return draft;
++  const quote = `From ${path}:\n${text.replace(/\r\n?/g, '\n').split('\n').map(line => `> ${line}`).join('\n')}\n\n`;
++  const result = draft + (draft && !draft.endsWith('\n\n') ? '\n\n' : '') + quote;
++  if (result.length > DRAFT_LIMIT) throw new Error('Quote not added: the draft would exceed 100,000 characters. Shorten the draft or select a smaller passage.');
++  return result;
++}
+diff --git a/frontend/documents.tsx b/frontend/documents.tsx
+index 102aa74..c7607e9 100644
+--- a/frontend/documents.tsx
++++ b/frontend/documents.tsx
+@@ -1,4 +1,4 @@
+-import { useEffect, useMemo, useState } from 'react';
++import { useEffect, useMemo, useRef, useState } from 'react';
+ import DOMPurify from 'dompurify';
+ import { marked } from 'marked';
+ 
+@@ -33,13 +33,56 @@ export function DocumentPicker({ onOpen }: { onOpen: (path: string) => void }) {
+ 
+ interface Document { path: string; content: string }
+ 
+-export function DocumentView({ path, busy, onClose, onOpen }: {
++export function DocumentView({ path, busy, onClose, onOpen, onQuote }: {
+   path: string; busy: boolean; onClose: () => void; onOpen: (path: string) => void;
++  onQuote: (path: string, text: string) => string | null;
+ }) {
+   const [doc, setDoc] = useState<Document | null>(null);
+   const [error, setError] = useState('');
+   const [loading, setLoading] = useState(true);
+   const [loadAttempt, setLoadAttempt] = useState(0);
++  const article = useRef<HTMLElement>(null);
++  const quoteAction = useRef<HTMLDivElement>(null);
++  const [selection, setSelection] = useState<{ text: string; x: number; y: number } | null>(null);
++  const [quoteError, setQuoteError] = useState('');
++
++  function dismissQuote() {
++    setSelection(null); setQuoteError('');
++  }
++  useEffect(() => {
++    dismissQuote();
++    if (loading || !doc) return;
++    function capture() {
++      const selected = window.getSelection();
++      if (quoteAction.current?.contains(document.activeElement)) return;
++      if (!selected || selected.isCollapsed || selected.rangeCount !== 1 ||
++          !article.current?.contains(selected.anchorNode) || !article.current.contains(selected.focusNode) ||
++          !selected.toString().trim()) { dismissQuote(); return; }
++      const rect = selected.getRangeAt(0).getBoundingClientRect();
++      if (!rect.width && !rect.height) { dismissQuote(); return; }
++      setQuoteError('');
++      setSelection({ text: selected.toString(), x: Math.max(8, Math.min(rect.left, window.innerWidth - 236)),
++        y: rect.top >= 48 ? rect.top - 44 : Math.min(window.innerHeight - 48, rect.bottom + 6) });
++    }
++    function keydown(event: KeyboardEvent) {
++      if (event.key === 'Escape') { dismissQuote(); window.getSelection()?.removeAllRanges(); }
++    }
++    function outside(event: PointerEvent) {
++      if (!quoteAction.current?.contains(event.target as Node)) dismissQuote();
++    }
++    document.addEventListener('selectionchange', capture);
++    document.addEventListener('keydown', keydown);
++    document.addEventListener('pointerdown', outside);
++    window.addEventListener('resize', dismissQuote);
++    window.addEventListener('scroll', dismissQuote, true);
++    return () => {
++      document.removeEventListener('selectionchange', capture);
++      document.removeEventListener('keydown', keydown);
++      document.removeEventListener('pointerdown', outside);
++      window.removeEventListener('resize', dismissQuote);
++      window.removeEventListener('scroll', dismissQuote, true);
++    };
++  }, [doc, loading, path]);
+   useEffect(() => {
+     const controller = new AbortController();
+     setLoading(true); setError('');
+@@ -74,7 +117,7 @@ export function DocumentView({ path, busy, onClose, onOpen }: {
+       {loading && <p role="status">Loading document…</p>}
+       {error && <div className="error" role="alert">{error} <button className="quiet-button" disabled={loading}
+         onClick={() => setLoadAttempt(attempt => attempt + 1)}>Retry</button></div>}
+-      {doc && <article className="markdown-document" dangerouslySetInnerHTML={{ __html: html }} onClick={event => {
++      {doc && <article ref={article} className="markdown-document" dangerouslySetInnerHTML={{ __html: html }} onClick={event => {
+         const link = (event.target as HTMLElement).closest('a');
+         if (!link) return;
+         const href = link.getAttribute('href') || '';
+@@ -86,5 +129,17 @@ export function DocumentView({ path, busy, onClose, onOpen }: {
+         } else if (/^https?:\/\//i.test(href)) window.open(href, '_blank', 'noopener,noreferrer');
+       }} />}
+     </div>
++    {selection && !loading && doc && <div ref={quoteAction} className="document-quote-action"
++      role="group" aria-label="Selected passage" style={{ left: selection.x, top: selection.y }}>
++      <button type="button" onPointerDown={event => event.preventDefault()} onClick={() => {
++        const failure = onQuote(doc.path, selection.text);
++        if (failure) setQuoteError(failure);
++        else { dismissQuote(); window.getSelection()?.removeAllRanges(); }
++      }}>Add to chat</button>
++      <button type="button" aria-label="Dismiss quote" onClick={() => {
++        dismissQuote(); window.getSelection()?.removeAllRanges();
++      }}>×</button>
++      {quoteError && <p role="alert">{quoteError}</p>}
++    </div>}
+   </section>;
+ }
+diff --git a/frontend/main.tsx b/frontend/main.tsx
+index 938accc..c39a6c7 100644
+--- a/frontend/main.tsx
++++ b/frontend/main.tsx
+@@ -1,4 +1,4 @@
+-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
++import { useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type CSSProperties, type Ref } from 'react';
+ import { createRoot } from 'react-dom/client';
+ import type { Transcript, Message } from './transcript';
+ import { ChatDisplay } from './chat-display';
+@@ -11,6 +11,9 @@ import './transcript';
+ import './style.css';
+ import './reader.css';
+ import { DocumentPicker, DocumentView } from './documents';
++import { appendDocumentQuote, DRAFT_LIMIT } from './document-quotes';
++
++type QuoteComposer = { addQuote: (path: string, text: string) => string | null };
+ 
+ interface State {
+   messages: Message[]; busy: boolean; error: string | null; activity: string;
+@@ -27,6 +30,7 @@ function App() {
+   });
+   const [resizing, setResizing] = useState(false);
+   const workspace = useRef<HTMLDivElement>(null);
++  const quoteComposer = useRef<QuoteComposer>(null);
+   const drag = useRef<{ x: number; width: number } | null>(null);
+   function openDocument(path: string) {
+     if (path) sessionStorage.setItem('open-document', path);
+@@ -53,7 +57,7 @@ function App() {
+   // Each conversation owns its draft/outbox closures, even if an old request finishes late.
+   return <div className={`app ${documentPath ? 'workspace' : ''} ${resizing ? 'resizing' : ''}`}
+     ref={workspace} style={{ '--chat-width': `${chatWidth}px` } as CSSProperties}>
+-    <Chat key={state.sessionId || 'initial'} state={state} connected={connected} onOpenDocument={openDocument} />
++    <Chat key={state.sessionId || 'initial'} state={state} connected={connected} onOpenDocument={openDocument} quoteRef={quoteComposer} />
+     {documentPath && <div className="panel-resizer" role="separator" tabIndex={0}
+       aria-label="Resize chat panel" aria-orientation="vertical" aria-valuemin={320} aria-valuemax={900} aria-valuenow={chatWidth}
+       onDoubleClick={() => resizeChat(480)}
+@@ -75,12 +79,13 @@ function App() {
+         }
+       }} />}
+     {documentPath && <DocumentView key={documentPath} path={documentPath} busy={state.busy}
+-      onClose={() => openDocument('')} onOpen={openDocument} />}
++      onClose={() => openDocument('')} onOpen={openDocument}
++      onQuote={(path, text) => quoteComposer.current ? quoteComposer.current.addQuote(path, text) : 'Chat is not ready. Try again.'} />}
+   </div>;
+ }
+ 
+-function Chat({ state, connected, onOpenDocument }: {
+-  state: State; connected: boolean; onOpenDocument: (path: string) => void;
++function Chat({ state, connected, onOpenDocument, quoteRef }: {
++  state: State; connected: boolean; onOpenDocument: (path: string) => void; quoteRef: Ref<QuoteComposer>;
+ }) {
+   const draftKey = chatKey(state.sessionId, 'draft');
+   const cursorKey = chatKey(state.sessionId, 'draft-cursor');
+@@ -97,6 +102,26 @@ function Chat({ state, connected, onOpenDocument }: {
+   const follow = useRef(true);
+   const input = useRef<HTMLTextAreaElement>(null);
+ 
++  const focusQuote = useRef(false);
++  useImperativeHandle(quoteRef, () => ({
++    addQuote(path, text) {
++      if (startingSession) return 'Quote not added: wait for the chat to finish opening.';
++      try {
++        const next = appendDocumentQuote(input.current?.value ?? draft, path, text);
++        focusQuote.current = true;
++        setDraft(next);
++        return null;
++      } catch (err) { return err instanceof Error ? err.message : String(err); }
++    },
++  }));
++  useLayoutEffect(() => {
++    if (!focusQuote.current || !input.current) return;
++    focusQuote.current = false;
++    input.current.focus();
++    input.current.setSelectionRange(draft.length, draft.length);
++    saveComposer();
++  }, [draft]);
++
+   function saveComposer() {
+     const element = input.current;
+     if (!element) return;
+@@ -255,7 +280,7 @@ function Chat({ state, connected, onOpenDocument }: {
+         </li>)}</ol>
+       </section>}
+       <form onSubmit={event => { event.preventDefault(); send(); }}>
+-        <textarea ref={input} value={draft} disabled={startingSession} rows={1} maxLength={100000} aria-label="Message Pi"
++        <textarea ref={input} value={draft} disabled={startingSession} rows={1} maxLength={DRAFT_LIMIT} aria-label="Message Pi"
+           placeholder={state.busy ? 'Steer Pi while it works…' : 'Ask Pi to change this app…'}
+           onSelect={saveComposer} onChange={event => { setDraft(event.target.value); saveComposer(); }}
+           onKeyDown={event => {
+diff --git a/frontend/reader.css b/frontend/reader.css
+index 0fec720..8abcb0d 100644
+--- a/frontend/reader.css
++++ b/frontend/reader.css
+@@ -36,6 +36,10 @@
+ .markdown-document th, .markdown-document td { border: 1px solid #dcdfd2; padding: 8px 12px; }
+ .markdown-document blockquote { margin: 12px 0; padding-left: 16px; border-left: 2px solid #abb99e; color: #747e6c; white-space: pre-wrap; }
+ .markdown-document hr { border: 0; border-top: 1px solid #dcdfd2; margin: 32px 0; }
++.document-quote-action { position: fixed; z-index: 30; display: flex; flex-wrap: wrap; gap: 6px; max-width: min(228px, calc(100vw - 16px)); padding: 6px; background: #fffefa; border: 1px solid #abb99e; border-radius: 8px; box-shadow: 0 4px 16px #25351c26; }
++.document-quote-action button { padding: 6px 10px; border: 1px solid #dcdfd2; border-radius: 5px; background: #f4f5ed; color: #344d28; cursor: pointer; font: inherit; font-size: 13px; }
++.document-quote-action button:focus-visible { outline: 2px solid #516f42; outline-offset: 2px; }
++.document-quote-action p { flex-basis: 100%; margin: 4px; font-size: 12px; line-height: 1.5; }
+ @media (max-width: 1000px) {
+   .app.workspace { grid-template-columns: clamp(320px, var(--chat-width, 480px), calc(100% - 369px)) 0 minmax(0, 1fr); }
+   .document-scroll { padding: 24px 16px 48px; }
+diff --git a/tests/document-quotes.test.ts b/tests/document-quotes.test.ts
+new file mode 100644
+index 0000000..e802c4e
+--- /dev/null
++++ b/tests/document-quotes.test.ts
+@@ -0,0 +1,23 @@
++import assert from 'node:assert/strict';
++import test from 'node:test';
++import { appendDocumentQuote, DRAFT_LIMIT } from '../frontend/document-quotes.ts';
++
++test('attributes rendered multiline passages and preserves the entire draft', () => {
++  assert.equal(appendDocumentQuote('My question', '/docs/reader.md', '  First\r\n\r\nLast'),
++    'My question\n\nFrom /docs/reader.md:\n>   First\n> \n> Last\n\n');
++});
++
++test('ignores blank selections and supports empty drafts and repeated quotes', () => {
++  assert.equal(appendDocumentQuote('Keep me', 'x', ' \n\t'), 'Keep me');
++  const first = appendDocumentQuote('', 'a.md', 'One');
++  assert.equal(first, 'From a.md:\n> One\n\n');
++  assert.equal(appendDocumentQuote(first, 'b.md', 'Two'), first + 'From b.md:\n> Two\n\n');
++});
++
++test('accepts the exact draft limit and rejects overflow without truncation', () => {
++  const quote = appendDocumentQuote('', 'x', 'text');
++  const existing = 'a'.repeat(DRAFT_LIMIT - quote.length - 2);
++  assert.equal(appendDocumentQuote(existing, 'x', 'text').length, DRAFT_LIMIT);
++  assert.throws(() => appendDocumentQuote(existing + 'a', 'x', 'text'), /exceed 100,000/);
++  assert.equal(existing.length, DRAFT_LIMIT - quote.length - 2);
++});
+diff --git a/tests/quote-browser.mjs b/tests/quote-browser.mjs
+new file mode 100644
+index 0000000..c589771
+--- /dev/null
++++ b/tests/quote-browser.mjs
+@@ -0,0 +1,122 @@
++// Optional isolated acceptance check after `make build` (no backend/provider).
++// npm install --no-save --package-lock=false --prefix .local/quote-browser playwright@1.48.2
++// PLAYWRIGHT_MODULE=../.local/quote-browser/node_modules/playwright/index.mjs node tests/quote-browser.mjs
++import assert from 'node:assert/strict';
++import { createServer } from 'node:http';
++import { readFile } from 'node:fs/promises';
++import { resolve, extname } from 'node:path';
++const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
++const root = resolve('dist');
++const server = createServer(async (req, res) => {
++  try {
++    const file = resolve(root, '.' + new URL(req.url, 'http://localhost').pathname.replace(/\/$/, '/index.html'));
++    if (!file.startsWith(root + '/')) throw new Error('Invalid path');
++    res.setHeader('Content-Type', ({ '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css' })[extname(file)] || 'text/plain');
++    res.end(await readFile(file));
++  } catch { res.writeHead(404); res.end(); }
++});
++await new Promise(done => server.listen(0, '127.0.0.1', done));
++const browser = await chromium.launch({ headless: true });
++try {
++  for (const width of [1440, 390]) {
++    const page = await browser.newPage({ viewport: { width, height: 1000 } });
++    const sent = [];
++    const errors = [];
++    page.on('pageerror', error => errors.push(error.message));
++    await page.addInitScript(() => {
++      sessionStorage.setItem('open-document', 'reader.md');
++      window.snapshot = { messages: [], busy: false, error: null, activity: '', steering: [], context: null, sessionId: 'fixture' };
++      window.EventSource = class {
++        constructor() { window.events = this; setTimeout(() => this.onmessage?.({ data: JSON.stringify(window.snapshot) }), 0); }
++        close() {}
++      };
++    });
++    await page.route('**/api/**', async route => {
++      const url = new URL(route.request().url());
++      let result = {};
++      if (url.pathname === '/api/documents/content') {
++        const second = url.searchParams.get('path') === 'other.md';
++        result = { path: second ? '/canonical/other.md' : '/canonical/reader.md', content: second ? '# Other\n\nDifferent passage.' : '# Reader\n\nA passage worth discussing.\n\n[Other](other.md)' };
++      } else if (url.pathname === '/api/documents/resolve') result = { path: 'other.md' };
++      else if (url.pathname === '/api/chat') { sent.push(route.request().postDataJSON()); result = { accepted: true }; }
++      else throw new Error(`Unexpected API: ${url.pathname}`);
++      await route.fulfill({ json: result });
++    });
++    await page.goto(`http://127.0.0.1:${server.address().port}`);
++    const composer = page.getByRole('textbox', { name: 'Message Pi' });
++    const action = page.getByRole('button', { name: 'Add to chat', exact: true });
++    await composer.fill('My existing question');
++    async function select() {
++      await page.locator('.markdown-document').scrollIntoViewIfNeeded();
++      await page.locator('.markdown-document p').first().evaluate(element => {
++        const range = document.createRange(); range.selectNodeContents(element);
++        const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(range);
++      });
++      await action.waitFor();
++    }
++    await page.locator('.markdown-document').scrollIntoViewIfNeeded();
++    const textRect = await page.locator('.markdown-document p').first().evaluate(element => {
++      const range = document.createRange(); range.selectNodeContents(element);
++      const rect = range.getBoundingClientRect();
++      return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
++    });
++    await page.mouse.move(textRect.x + 1, textRect.y + textRect.height / 2);
++    await page.mouse.down();
++    await page.mouse.move(textRect.x + textRect.width - 1, textRect.y + textRect.height / 2, { steps: 12 });
++    await page.mouse.up();
++    await action.waitFor();
++    assert.equal(await composer.inputValue(), 'My existing question');
++    const rect = await page.locator('.markdown-document p').first().boundingBox();
++    const buttonRect = await action.boundingBox();
++    assert.ok(Math.min(Math.abs(buttonRect.y - rect.y), Math.abs(buttonRect.y - (rect.y + rect.height))) < 60);
++    assert.ok(buttonRect.x >= 0 && buttonRect.x + buttonRect.width <= width);
++    await page.keyboard.press('Escape');
++    await action.waitFor({ state: 'hidden' });
++    assert.equal(await composer.inputValue(), 'My existing question');
++    await select();
++    await page.getByRole('link', { name: 'Other', exact: true }).focus();
++    await page.keyboard.press('Tab');
++    assert.equal(await action.evaluate(el => el === document.activeElement), true);
++    await page.keyboard.press('Enter');
++    assert.equal(await composer.inputValue(), 'My existing question\n\nFrom /canonical/reader.md:\n> A passage worth discussing.\n\n');
++    assert.equal(await composer.evaluate(el => el === document.activeElement), true);
++    assert.equal(sent.length, 0);
++    const first = await composer.inputValue();
++    await page.reload(); await composer.waitFor();
++    assert.equal(await composer.inputValue(), first);
++    await page.evaluate(() => { window.snapshot.busy = true; window.events.onmessage({ data: JSON.stringify(window.snapshot) }); });
++    await select(); await action.click();
++    assert.equal(await composer.inputValue(), first + 'From /canonical/reader.md:\n> A passage worth discussing.\n\n');
++    assert.equal(sent.length, 0);
++    await composer.fill('x'.repeat(99995));
++    await select(); await action.click();
++    assert.match(await page.getByRole('alert').innerText(), /exceed 100,000/);
++    assert.equal((await composer.inputValue()).length, 99995);
++    assert.equal(sent.length, 0);
++    await page.getByRole('button', { name: 'Dismiss quote' }).click();
++    await action.waitFor({ state: 'hidden' });
++    await composer.fill('Ready');
++    await composer.evaluate(el => { el.focus(); el.select(); });
++    assert.equal(await action.count(), 0);
++    await select();
++    await page.getByRole('link', { name: 'Other', exact: true }).click();
++    await page.getByRole('heading', { name: 'Other', exact: true }).waitFor();
++    await action.waitFor({ state: 'hidden' });
++    assert.equal(await composer.inputValue(), 'Ready');
++    await select(); await action.click();
++    assert.equal(await composer.inputValue(), 'Ready\n\nFrom /canonical/other.md:\n> Different passage.\n\n');
++    await select();
++    await page.getByRole('button', { name: 'Close document' }).click();
++    await action.waitFor({ state: 'hidden' });
++    assert.equal(sent.length, 0);
++    const finalDraft = await composer.inputValue();
++    await page.getByRole('button', { name: 'Steer Pi', exact: true }).click();
++    await page.waitForFunction(() => document.querySelector('textarea').value === '');
++    await new Promise(done => setTimeout(done, 100));
++    assert.equal(sent.length, 1);
++    assert.equal(sent[0].message, finalDraft);
++    assert.deepEqual(errors, []);
++    console.log(`PASS ${width}px: selection, placement, keyboard, dismiss, preservation, persistence, busy, overflow, navigation, close, explicit send`);
++    await page.close();
++  }
++} finally { await browser.close(); await new Promise(done => server.close(done)); }

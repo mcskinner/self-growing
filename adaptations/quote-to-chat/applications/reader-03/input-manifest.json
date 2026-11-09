@@ -1,0 +1,11 @@
+{
+  "description_sha256": "07a7e9fa977cd9beb08280ff319e80a73908f2fb543224d6943293cf2135025c",
+  "reference_patch_sha256": "ad64a2f52d16e3a4e61b404f58ff11a67b34954b161e49846e9559123521df1b",
+  "source_evidence_sha256": "9c2370570f319838d5f25aa70d208c87a51e3382dcd2bc05b7a4d60c6367faa7",
+  "verifier_sha256": "cc4db324be316d88455af1456ced40613ac90c9f5c26f908ce23c2d28e4be9dc",
+  "skill_sha256": "8061e9dbd836396c62cfa5a5548698617204aff3dd06d1ab4326c62edfda9256",
+  "tooling_sha256": "0d72497044749d70919d113b234a36d0e5fb974a3468ada83d88d2754606b60c",
+  "verifier": "../../verification.mjs",
+  "configured_model": "openai-codex/gpt-6.1-sol",
+  "coaching_or_repair_provided": false
+}
