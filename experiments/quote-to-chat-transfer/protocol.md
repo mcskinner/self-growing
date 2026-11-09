@@ -1,6 +1,6 @@
 # Experiment: transfer quote-to-chat from a reviewed implementation
 
-Status: first transfer, revised-description retry, separate prompted repair, and additional uncoached replication completed, 2026-11-08. Plan committed as `58bae20` before extraction/application, not before the source feature's development.
+Status: initial transfers/repair/replication complete; up to three additional verification-guidance trials authorized and planned, 2026-11-08. Plan committed as `58bae20` before extraction/application, not before the source feature's development.
 
 ## Question and hypothesis
 
@@ -78,6 +78,18 @@ Freeze these inputs before invocation:
 Record the first resulting commit/diff/feedback, run the existing evaluator, and independently replay desktop/narrow acceptance and inspect the selection-action screenshots. Keep any harness/setup issue distinct from implementation failures. Preserve a failure without silently repairing it; no automatic repair or additional instruction revision is part of this run. Do not integrate target runtime code into the running workshop. This is another closely related same-base application, not broad portability, a guarantee, or a comparison of development methods.
 
 Replication `47c4860104fd9a979651213e1764d51a31d0ddaa` passed unchanged record/evaluate and all functional scenarios of the byte-identical independent verifier at 1440px/390px. Nearby placement and settled composer-end-caret checks passed; the action's label overflowed inherited global button dimensions at both widths. Screenshot/code review confirms the failure. Overall acceptance failed, with no repair, verifier adjustment, or further description change. See the [uncoached replication review](../../adaptations/quote-to-chat/applications/reader-03/coordinator-review.md), frozen hashes, patch, feedback, and separate browser verdicts. No trial runtime code was integrated into the running app.
+
+### [2026-11-08] prospective amendment: at most three further verification-guidance trials
+
+The owner authorized up to three additional fresh applications (`reader-04`, `reader-05`, `reader-06`), not three repairs of an existing application. Hypothesis: the recurring label defect reflects a missing verification obligation. Previous applier scripts tested button placement/clicking but not actual label fit; a portable acceptance sentence may close that gap without prescribing target-specific CSS.
+
+For reader-04, append one sentence to the current description requiring browser assertions that the quote-action label is readable on one line and fits inside its control at wide/narrow viewports, explicitly distinguishing label geometry from button visibility/bounds. No CSS recipe, debugging history, repaired code, or coordinator test is supplied. Preserve original reference/evidence, configured model, existing skill/tooling, and the original target `0d6ebc22c84fed9bc3848b6beb8ed3f957d71c61`. Freeze the revised description in Git before preparing/running a fresh applier. Hold out and replay unchanged verification.mjs SHA-256 `cc4db324be316d88455af1456ced40613ac90c9f5c26f908ce23c2d28e4be9dc`.
+
+Each application is autonomous within its first invocation, committed and recorded before independent evaluation. Use the same normal safety/context brief and isolated worktree/session pattern; never show prior outcomes or repair hints beyond the frozen description's explicitly tested guidance. Publish selected patches, hashes, feedback, evaluation outcomes, and coordinator review; raw sessions/screenshots stay local. Keep the running feature unchanged.
+
+If reader-04 passes, use another fresh same-base run with identical guidance to test replication. Two independently passing fresh applications on the same inputs are a stopping point, not evidence of broad portability. If a run fails, preserve it and diagnose the observed gap before deciding whether the next run merits a minimal guidance amendment or unchanged replication; commit any amendment before invocation. Do not automatically turn implementation-specific fixes into instructions. At most three new application invocations are authorized; no prompted repair chain in this batch. Stop earlier if useful evidence is sufficient, and report uncertainty rather than manufacturing a clean outcome. No skill/tooling hardening or target-baseline changes are part of this batch.
+
+Additional trial results: pending.
 
 ## Lessons and next experiment
 
