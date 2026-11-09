@@ -111,7 +111,11 @@ Freeze description SHA-256 `20979b7109a7a6c3b6f66cc897011fcc54b202c35cb796f136fb
 
 Record each first committed result and feedback, run the existing evaluator, and independently replay the held-out wide/narrow checks and inspect screenshots. Preserve the original verifier output if a valid different caption requires a locator-only translation; publish the exact selector delta with unchanged assertions. No coordinator code edits, prompted repairs, or description amendments in this replication pair. Keep the running feature/saved chats untouched; preserve both outcomes rather than chasing a success. These two runs test repeatability on this related baseline, not broad app portability or necessity of either guidance sentence.
 
-Reader-07 and reader-08 outcomes: pending.
+Reader-07/08 final outcomes: pending.
+
+#### [2026-11-08] verifier subject-translation clarification
+
+Reader-07's first committed result passed automated evaluation and the caption-translated independent functional scenarios, but exposed another verifier markup assumption: its single-line label is wrapped in a span, so a Range over all button contents counts both the span rectangle and its text rectangle as if they were two lines. Screenshots show readable contained text; source inspection confirms the wrapper. Preserve original/caption-only outputs and use a separate supplemental verifier that selects the actual label span's contents, checking that it covers the entire button text. Keep single-line, control containment/overflow, viewport, placement, and all functional assertions intact; log wrapper/text rectangles for diagnosis. This is target-specific label-subject locator translation, not a product repair or relaxed readability criterion. Record the exact verifier delta and hashes. The canonical verifier remains unchanged, and neither fresh applier receives this diagnostic information.
 
 ## Lessons and next experiment
 
