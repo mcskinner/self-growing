@@ -1,6 +1,6 @@
 # Experiment: transfer quote-to-chat from a reviewed implementation
 
-Status: completed first transfer, revised-description retry, and separately prompted repair, 2026-11-08. Plan committed as `58bae20` before extraction/application, not before the source feature's development.
+Status: first transfer, revised-description retry, and separately prompted repair completed; additional uncoached replication planned, 2026-11-08. Plan committed as `58bae20` before extraction/application, not before the source feature's development.
 
 ## Question and hypothesis
 
@@ -64,6 +64,20 @@ Create another worktree from `959a911`, retaining the same description. Supply a
 Repair `a109476` passed existing automated evaluation and full independent mocked Chromium acceptance at 1440px/390px. Its source was not integrated into the workshop. The final verifier still fails both original applications, distinguishing the two earlier misses from the repaired result. See the [repair review](../../adaptations/quote-to-chat/applications/reader-02-repair/coordinator-review.md) and [adaptation overview](../../adaptations/quote-to-chat/README.md).
 
 Verifier refinements are recorded explicitly: inactive does not require absent markup; selected newlines use hard-break fixtures; asynchronous focus and viewport/layout settling must be awaited; actual label overflow is stronger than a minimum pixel-width heuristic. No application code changed during coordinator verification. The final recipe was replayed against all three committed states. Raw iterations and screenshots remain local.
+
+### [2026-11-08] prospective amendment: uncoached revised-description replication
+
+The owner requested another clean run because a repaired pass does not establish uncoached sufficiency. Prepare `quote-to-chat-reader-03` from the original target `0d6ebc22c84fed9bc3848b6beb8ed3f957d71c61`, not either prior application or the repair. Use a fresh Pi session with the same configured model, existing skill/tooling, ordinary target context, and only the generated brief/frozen description plus original reference/evidence. Do not supply previous results, repair code, debugging feedback, or the independent verifier. No new instruction changes or coordinator runtime edits.
+
+Freeze these inputs before invocation:
+
+- Description SHA-256: `07a7e9fa977cd9beb08280ff319e80a73908f2fb543224d6943293cf2135025c` (unchanged from reader-02 and its repair).
+- Original reference.patch SHA-256: `ad64a2f52d16e3a4e61b404f58ff11a67b34954b161e49846e9559123521df1b`.
+- Independent verification.mjs SHA-256: `cc4db324be316d88455af1456ced40613ac90c9f5c26f908ce23c2d28e4be9dc` (held out; replay unchanged).
+
+Record the first resulting commit/diff/feedback, run the existing evaluator, and independently replay desktop/narrow acceptance and inspect the selection-action screenshots. Keep any harness/setup issue distinct from implementation failures. Preserve a failure without silently repairing it; no automatic repair or additional instruction revision is part of this run. Do not integrate target runtime code into the running workshop. This is another closely related same-base application, not broad portability, a guarantee, or a comparison of development methods.
+
+Replication result: pending.
 
 ## Lessons and next experiment
 
