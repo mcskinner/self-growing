@@ -18,3 +18,7 @@ The first replay used exactly reader-01's corrected recipe and failed its label-
 Preserve this first state and use a separately recorded, explicitly prompted repair for the observed button-fit and composer-end-caret failures. Do not add more adaptation instructions for ordinary implementation bugs or label a repaired result a successful uncoached transfer. The one-sentence placement guidance reached its intended UI form in this trial, but that does not establish whole-feature first-try success or causality across stochastic agents.
 
 All browser APIs/chat were mocked. No live provider, real native chooser, physical touch, exhaustive accessibility/browser coverage, or owner acceptance. Screenshots and raw sessions stay local; selected logs and the application patch are retained here. The running app remains the original reviewed implementation.
+
+## Final regression replay
+
+The [separate repair](../reader-02-repair/coordinator-review.md) subsequently passed the full suite. Its final verifier was replayed unchanged against this original commit and still timed out on the settled composer-end-caret assertion; see final-replay.log. Later harness changes wait for settled layout/scroll before synthetic selections and measure actual text overflow. They did not remove this application's failure. The first state here remains unmodified.

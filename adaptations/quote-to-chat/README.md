@@ -9,4 +9,27 @@ Explicitly bring selected document text and its source path into an editable cha
 
 Source: reviewed feature `e97bfc6`. The reference patch is mixed with navigation work; do not apply it wholesale. The protocol was written before extraction/application, not before the original feature's development.
 
-The [first transfer](applications/reader-01/coordinator-review.md) passed functional checks but missed nearby-highlight placement. A [one-sentence revision](revision-notes.md) is frozen for a fresh same-base retry. No claim of broad portability or superiority of implementation-first development.
+## Transfer results
+
+| Attempt | Outcome |
+| --- | --- |
+| [Initial description](applications/reader-01/coordinator-review.md), `af11bde` | Functional checks passed; permanent quote toolbar missed the nearby-highlight interaction. |
+| [One-sentence placement revision](applications/reader-02/coordinator-review.md), `959a911` | Placement improved; independent checks found label overflow and a composer-end-caret/focus bug despite passing automated evaluation. |
+| [Separate prompted repair](applications/reader-02-repair/coordinator-review.md), `a109476` | Automated evaluation and full independent mocked Chromium checks passed at 1440px/390px. Not an uncoached first-try success. |
+
+Original descriptions, patches, feedback, and evaluation outcomes are preserved. See [revision notes](revision-notes.md). Recorded worktree paths are local conveniences, not portable dependencies; application commits remain local/unpushed, with durable patches retained here. The final verifier still fails on both original applications. No trial runtime code was integrated into the running workshop. No claim of broad portability, live-provider validation, target owner acceptance, or superiority of implementation-first development.
+
+## Reproduce the independent browser checks
+
+Use a built target worktree and an externally available Playwright module/browser. The [recipe](verification.mjs) starts only an ephemeral static-file fixture and mocks all API/chat traffic; it does not run a development stack or contact a provider. Copy it to a local output directory so generated screenshots/results are not placed in the adaptation directory:
+
+```sh
+mkdir -p .local/quote-replay
+cp adaptations/quote-to-chat/verification.mjs .local/quote-replay/
+TARGET_WORKTREE=/absolute/path/to/built-target \
+PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs \
+CHROME_PATH=/absolute/path/to/chrome \
+node .local/quote-replay/verification.mjs
+```
+
+The historical target has a native picker; the fixture intercepts its result, not the OS dialog. Portability of the recipe to unrelated markup is not established. Raw coding sessions, prompts, screenshots, and unsuccessful harness iterations remain local rather than another published artifact bundle.

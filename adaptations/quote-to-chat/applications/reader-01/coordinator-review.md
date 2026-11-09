@@ -20,3 +20,7 @@ The initial extraction explicitly left UI placement to the recipient. The recipi
 ## Limits
 
 APIs/chat/SSE were mocked; no live provider, native OS chooser, physical touch, screen reader, Safari/Firefox, exhaustive source selections, or owner visual acceptance. The fixture intercepts picker results and therefore tests frontend flow, not macOS file selection. Raw agent sessions and screenshots stay local. No active session files were changed.
+
+## Final regression replay
+
+After the separate repair, the final shared verifier was replayed unchanged against this original commit. Both viewports again passed functional checks and label fit but failed nearby placement. See final-replay.log and final-browser-result.json here, and the [repair review](../reader-02-repair/coordinator-review.md) for the final verifier hash and subsequent harness refinements. This original application was never repaired in place.

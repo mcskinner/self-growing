@@ -57,6 +57,12 @@ blind starter/workshop applications, independent behavioral verification, and a 
 It includes a [portable verification recipe](markdown-reader/verification-recipe.md) and preserves
 the initial failed navigation acceptance rather than folding its fix into the first attempt.
 
+The [quote-to-chat transfer](quote-to-chat/README.md) starts from an ordinarily developed,
+owner-reviewed feature. A fresh extraction excluded mixed-in navigation work; a first transfer
+missed action placement, a one-sentence retry exposed implementation bugs, and a separately
+prompted repair passed independent mocked browser checks. Original failures remain recorded;
+this is not proof of first-try transfer or superiority of implementation-first development.
+
 ## Produce the next adaptation
 
 In workshop Pi, use `/skill:adapt` (after `/reload`, or start a fresh Pi). It provides the

@@ -1,0 +1,25 @@
+{
+  "accepted": false,
+  "reports": [
+    {
+      "width": 1440,
+      "functional_checks_passed": true,
+      "label_fits": true,
+      "near_selection": false,
+      "distance_from_selection_px": 115,
+      "scenarios": "picker, pointer selection, label geometry, attribution, draft preservation, keyboard, reload, per-chat isolation, multiline, busy, outside/whitespace, limits, navigation, close/reopen, history, explicit send",
+      "mocked": true
+    },
+    {
+      "width": 390,
+      "functional_checks_passed": true,
+      "label_fits": true,
+      "near_selection": false,
+      "distance_from_selection_px": 132,
+      "scenarios": "picker, pointer selection, label geometry, attribution, draft preservation, keyboard, reload, per-chat isolation, multiline, busy, outside/whitespace, limits, navigation, close/reopen, history, explicit send",
+      "mocked": true
+    }
+  ],
+  "live_provider_tested": false,
+  "physical_touch_tested": false
+}

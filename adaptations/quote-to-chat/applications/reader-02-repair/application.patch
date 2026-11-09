@@ -1,0 +1,183 @@
+diff --git a/docs/wiki/log.md b/docs/wiki/log.md
+index d044f56..5d79128 100644
+--- a/docs/wiki/log.md
++++ b/docs/wiki/log.md
+@@ -63,3 +63,7 @@ Captured the owner's [sharing and deployment](sharing-and-deployment.md) work tr
+ Read all 16 wiki Markdown pages, including the index, conventions, log, and sources; checked local links/index coverage and reviewed status claims against the experiment/application records and subsequent owner feedback. Mechanical lint passed. Corrected stale statements that guidance remained untested and that no evidence justified revising left-chat; distinguished fresh combined application from controlled instruction-effect comparisons. Updated acceptance evidence with the later visual rejection, fresh fidelity retry, and explicit owner acceptance. Removed an obsolete publication caveat from the discussion summary, connected later proposals, and captured selective evidence retention without adding another concept page.
+ 
+ Preserved the original journal and historical log entries, including statuses that were true at the time. Kept open questions about granularity, dependencies, privacy, governance, and deployment unresolved. The principle-guided header experiment has not run; its final reviewed target must still be pinned after the current border/header refinement. External URL reachability, browser anchor targets, and provider/native-dialog behavior were not validated by this wiki pass.
++
++## [2026-11-08] review | Prompted quote-to-chat integration repair
++
++Independent acceptance reported a quote label constrained by global icon-button sizing and a caret/focus failure after insertion. This prompted repair gives the action content-sized dimensions and defers composer focus/caret persistence until React commits the draft and the reader clears its selection. An isolated built-app Chromium regression checks label/viewport geometry, pointer/Enter/Space activation, dismissal, attribution, end-caret stability, continued typing, draft persistence, and no automatic send at desktop and narrow widths. Normal checks, tests, and build pass. This is repair evidence, not a fresh uncoached transfer or independent acceptance; live providers and native dialogs were not exercised.
+diff --git a/frontend/main.tsx b/frontend/main.tsx
+index 3937fab..24da51f 100644
+--- a/frontend/main.tsx
++++ b/frontend/main.tsx
+@@ -100,6 +100,7 @@ function Chat({ state, connected, onOpenDocument, composerRef }: {
+   const scroller = useRef<HTMLElement>(null);
+   const follow = useRef(true);
+   const input = useRef<HTMLTextAreaElement>(null);
++  const focusQuote = useRef(false);
+ 
+   useImperativeHandle(composerRef, () => ({
+     addQuote(quote) {
+@@ -109,13 +110,8 @@ function Chat({ state, connected, onOpenDocument, composerRef }: {
+       }
+       try {
+         const next = appendDocumentQuote(input.current?.value ?? draft, quote);
++        focusQuote.current = true;
+         setDraft(next); setError('');
+-        // Persist and focus immediately, without touching the outbox or send path.
+-        const element = input.current!;
+-        element.value = next;
+-        element.focus();
+-        element.setSelectionRange(next.length, next.length);
+-        saveComposer();
+       } catch (err) { setError(err instanceof Error ? err.message : String(err)); }
+     },
+   }));
+@@ -127,6 +123,17 @@ function Chat({ state, connected, onOpenDocument, composerRef }: {
+     sessionStorage.setItem(cursorKey, JSON.stringify([element.selectionStart, element.selectionEnd, element.selectionDirection]));
+   }
+ 
++  // Wait for React to commit the controlled value and the reader to clear its
++  // selection before focusing. Neither may overwrite the new caret afterwards.
++  useLayoutEffect(() => {
++    if (!focusQuote.current) return;
++    focusQuote.current = false;
++    const element = input.current!;
++    element.focus({ preventScroll: true });
++    element.setSelectionRange(element.value.length, element.value.length);
++    saveComposer();
++  }, [draft]);
++
+   useLayoutEffect(() => {
+     const element = input.current!;
+     let start = element.value.length;
+diff --git a/frontend/reader.css b/frontend/reader.css
+index 7453509..513d342 100644
+--- a/frontend/reader.css
++++ b/frontend/reader.css
+@@ -23,7 +23,7 @@
+ .document-toolbar .eyebrow { display: block; font-size: 10px; margin-bottom: 6px; }
+ .document-toolbar strong { display: block; font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+ .document-scroll { overflow: auto; flex: 1; min-height: 0; padding: 28px 24px 60px; }
+-.document-quote-action { position: fixed; z-index: 30; padding: 8px 12px; border: 1px solid #9cae8c; border-radius: 6px; background: #fffefa; color: #34452b; box-shadow: 0 3px 12px #0002; font: inherit; font-size: 13px; cursor: pointer; }
++.document-quote-action { position: fixed; z-index: 30; width: auto; height: auto; max-width: calc(100vw - 16px); white-space: nowrap; padding: 8px 12px; border: 1px solid #9cae8c; border-radius: 6px; background: #fffefa; color: #34452b; box-shadow: 0 3px 12px #0002; font: inherit; font-size: 13px; cursor: pointer; }
+ .document-quote-action:focus-visible { outline: 2px solid #516f42; outline-offset: 2px; }
+ .markdown-document { min-width: 0; margin: 0; padding: 0 12px; font-size: 15px; line-height: 1.85; overflow-wrap: anywhere; }
+ .markdown-document h1 { font-size: 36px; line-height: 1.25; }
+diff --git a/tests/quote-composer.browser.mjs b/tests/quote-composer.browser.mjs
+new file mode 100644
+index 0000000..854248d
+--- /dev/null
++++ b/tests/quote-composer.browser.mjs
+@@ -0,0 +1,107 @@
++// Run after `make build`:
++// PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs node --test tests/quote-composer.browser.mjs
++// Uses only built static assets and mocked APIs; no backend or provider.
++import assert from 'node:assert/strict';
++import { createServer } from 'node:http';
++import { readFile } from 'node:fs/promises';
++import { test } from 'node:test';
++
++const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
++
++test('quote action fits and leaves the committed composer ready to type', async () => {
++  const server = createServer(async (req, res) => {
++    try {
++      const path = new URL(req.url, 'http://localhost').pathname;
++      const file = path === '/' ? '/index.html' : path;
++      if (!/^\/(index\.html|assets\/[\w.-]+)$/.test(file)) throw new Error('Unknown asset');
++      const body = await readFile(new URL(`../dist${file}`, import.meta.url));
++      res.setHeader('Content-Type', file.endsWith('.js') ? 'text/javascript' : file.endsWith('.css') ? 'text/css' : 'text/html');
++      res.end(body);
++    } catch { res.writeHead(404).end(); }
++  });
++  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
++  let browser;
++  try {
++    browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
++    for (const width of [1280, 390]) {
++      for (const activation of ['pointer', 'Enter', 'Space']) {
++        const page = await browser.newPage({ viewport: { width, height: 900 } });
++        const posts = [];
++        await page.addInitScript(() => {
++          sessionStorage.setItem('open-document', 'fixture.md');
++          window.EventSource = class {
++            constructor() {
++              setTimeout(() => this.onmessage?.({ data: JSON.stringify({
++                messages: [], busy: false, error: null, activity: '', steering: [], context: null, sessionId: 'fixture-chat',
++              }) }), 0);
++            }
++            close() {}
++          };
++        });
++        await page.route('**/api/**', async route => {
++          const request = route.request();
++          if (request.method() === 'POST') posts.push(request.url());
++          if (request.url().includes('/documents/content?')) {
++            await route.fulfill({ json: { path: '/fixture.md', content: '# Fixture\n\nA selected passage for discussion.' } });
++          } else if (request.url().endsWith('/api/chat')) {
++            await route.fulfill({ json: {} });
++          } else {
++            await route.abort();
++          }
++        });
++        await page.goto(`http://127.0.0.1:${server.address().port}`);
++        const composer = page.getByRole('textbox', { name: 'Message Pi' });
++        await composer.fill('Existing draft');
++        const selectPassage = async () => {
++          await page.locator('.markdown-document p').scrollIntoViewIfNeeded();
++          await page.locator('.markdown-document p').evaluate(element => {
++            const range = document.createRange();
++            range.selectNodeContents(element);
++            window.getSelection().removeAllRanges();
++            window.getSelection().addRange(range);
++          });
++          await page.getByRole('button', { name: 'Add to chat' }).waitFor();
++        };
++        await selectPassage();
++        await page.keyboard.press('Escape');
++        assert.equal(await composer.inputValue(), 'Existing draft');
++        await selectPassage();
++        const action = page.getByRole('button', { name: 'Add to chat' });
++        const fits = await action.evaluate(element => {
++          const rect = element.getBoundingClientRect();
++          const range = document.createRange();
++          range.selectNodeContents(element);
++          const text = range.getBoundingClientRect();
++          return rect.width > 36 && element.scrollWidth <= element.clientWidth &&
++            text.left >= rect.left && text.right <= rect.right && text.top >= rect.top && text.bottom <= rect.bottom &&
++            rect.left >= 0 && rect.right <= innerWidth && rect.top >= 0 && rect.bottom <= innerHeight;
++        });
++        assert.ok(fits, `${width}/${activation}: readable action inside viewport`);
++        if (activation === 'pointer') await action.click();
++        else {
++          await action.focus();
++          await page.keyboard.press(activation);
++        }
++        const expected = 'Existing draft\n\nFrom /fixture.md:\n> A selected passage for discussion.\n\n';
++        await page.waitForFunction(expected => {
++          const element = document.querySelector('textarea');
++          return element.value === expected && document.activeElement === element &&
++            element.selectionStart === expected.length && element.selectionEnd === expected.length;
++        }, expected);
++        // Include a later frame so an asynchronous selection update cannot undo it.
++        await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
++        assert.deepEqual(await composer.evaluate(element => [document.activeElement === element, element.selectionStart, element.selectionEnd]),
++          [true, expected.length, expected.length]);
++        await page.keyboard.type('Continue typing');
++        assert.equal(await composer.inputValue(), `${expected}Continue typing`);
++        assert.deepEqual(posts, [], 'quoting and typing must not send');
++        assert.ok(await page.evaluate(expected => Object.values(sessionStorage).includes(expected), `${expected}Continue typing`),
++          'the edited quote remains in the saved draft');
++        await page.close();
++      }
++    }
++  } finally {
++    await browser?.close();
++    await new Promise(resolve => server.close(resolve));
++  }
++});

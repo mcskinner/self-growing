@@ -1,6 +1,6 @@
 # Experiment: transfer quote-to-chat from a reviewed implementation
 
-Status: planned, 2026-11-08. This protocol precedes extraction and target application, not the source feature's development.
+Status: completed first transfer, revised-description retry, and separately prompted repair, 2026-11-08. Plan committed as `58bae20` before extraction/application, not before the source feature's development.
 
 ## Question and hypothesis
 
@@ -61,8 +61,12 @@ Second fresh application `959a911` used the one-sentence revision frozen at `8c1
 
 Create another worktree from `959a911`, retaining the same description. Supply a fresh repair session only the observed failures (button label overflowing inherited dimensions and composer end-caret/focus assertion failing), the existing feature intent, and ordinary target/reference context. No coordinator runtime-code edits. Commit and record the repair delta separately; evaluate and replay the refined independent recipe. A repaired pass is prompted repair evidence, not a successful first application or a reason to inflate the adaptation description. Do not integrate the trial implementation into the running app.
 
-Repair result: pending.
+Repair `a109476` passed existing automated evaluation and full independent mocked Chromium acceptance at 1440px/390px. Its source was not integrated into the workshop. The final verifier still fails both original applications, distinguishing the two earlier misses from the repaired result. See the [repair review](../../adaptations/quote-to-chat/applications/reader-02-repair/coordinator-review.md) and [adaptation overview](../../adaptations/quote-to-chat/README.md).
+
+Verifier refinements are recorded explicitly: inactive does not require absent markup; selected newlines use hard-break fixtures; asynchronous focus and viewport/layout settling must be awaited; actual label overflow is stronger than a minimum pixel-width heuristic. No application code changed during coordinator verification. The final recipe was replayed against all three committed states. Raw iterations and screenshots remain local.
 
 ## Lessons and next experiment
 
-The first result separates functional transfer from interaction fidelity: leaving placement unspecified allowed a reasonable but different UI. Avoid adding the entire source implementation to fix one missing experience requirement. This trial cannot compare implementation-first and adaptation-first workflows; a later prospective trial would be needed for that question.
+The first result separates functional transfer from interaction fidelity: leaving placement unspecified allowed a reasonable but different UI. One sentence clarified that experience; do not add the entire source implementation to fix one missing requirement. The revised application reached the intended UI form but exposed ordinary CSS/controlled-input integration bugs, which were repaired without inflating the description. Passing automated evaluation and applier-authored browser checks did not establish independent acceptance.
+
+This is limited evidence from closely related targets, with reference code allowed. The repaired pass does not demonstrate first-try sufficiency or broad generalization. This trial cannot compare implementation-first and adaptation-first workflows; a later prospective trial would be needed for that question. No additional experiment is automatically scheduled.
