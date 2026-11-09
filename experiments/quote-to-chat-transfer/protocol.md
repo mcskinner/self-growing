@@ -55,7 +55,13 @@ First application `af11bde` used the unedited extraction frozen at `3834b42`. Ex
 
 Before starting a second application, add one sentence requiring the action beside the current highlight rather than a permanent quote toolbar. Freeze that revision, prepare a new worktree at the same original target commit, and run a fresh applier with its generated brief/normal context and unchanged reference evidence/tooling. Do not supply the first result, coordinator script, or repair coaching. Replay the corrected independent recipe unchanged. This tests one observed fidelity gap; no claim of broad generalization or a controlled causal comparison.
 
-Second application: pending.
+Second fresh application `959a911` used the one-sentence revision frozen at `8c14571`. Record/evaluate passed, and it produced a selection-relative action. Independent acceptance found real label-overflow and composer-end-caret/focus failures before completing the full suite. See the [second review](../../adaptations/quote-to-chat/applications/reader-02/coordinator-review.md). Its first state is preserved, not accepted.
+
+### [2026-11-08] prospective amendment: separate prompted application repair
+
+Create another worktree from `959a911`, retaining the same description. Supply a fresh repair session only the observed failures (button label overflowing inherited dimensions and composer end-caret/focus assertion failing), the existing feature intent, and ordinary target/reference context. No coordinator runtime-code edits. Commit and record the repair delta separately; evaluate and replay the refined independent recipe. A repaired pass is prompted repair evidence, not a successful first application or a reason to inflate the adaptation description. Do not integrate the trial implementation into the running app.
+
+Repair result: pending.
 
 ## Lessons and next experiment
 
